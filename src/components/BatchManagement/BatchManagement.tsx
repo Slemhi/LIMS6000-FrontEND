@@ -18,6 +18,15 @@ const BatchManagement: React.FC = () => {
   const [analyticalBatches, setAnalyticalBatches] = useState<AnalyticalBatch[]>(mockAnalyticalBatches);
   const [newBatchAssayType, setNewBatchAssayType] = useState('POT');
   const [newBatchAnalyst, setNewBatchAnalyst] = useState('Jane Smith');
+  const [viewMode, setViewMode] = useState<'view' | 'edit'>('view');
+
+  // Current user context (in a real app, this would come from authentication)
+  const currentUser = {
+    id: 'U002',
+    username: 'jsmith',
+    firstName: 'Jane',
+    lastName: 'Smith'
+  };
 
   // Equipment and Reagent options (in real app, these would come from inventory/equipment management)
   const equipmentOptions = [
@@ -184,8 +193,15 @@ const BatchManagement: React.FC = () => {
     return mockSamples.filter(sample => sample.prepBatchId === batchId);
   };
 
-  const handlePrepBatchClick = (batch: PrepBatch) => {
+  const handleViewBatch = (batch: PrepBatch) => {
     setSelectedPrepBatch(batch);
+    setViewMode('view');
+    setShowPrepBatchDetails(true);
+  };
+
+  const handleEditBatch = (batch: PrepBatch) => {
+    setSelectedPrepBatch(batch);
+    setViewMode('edit');
     setShowPrepBatchDetails(true);
   };
 
@@ -194,6 +210,11 @@ const BatchManagement: React.FC = () => {
       batch.id === updatedBatch.id ? updatedBatch : batch
     ));
     setSelectedPrepBatch(updatedBatch);
+  };
+
+  const canEditBatch = (batch: PrepBatch) => {
+    // User can edit if they created the batch (analyst matches current user)
+    return batch.analyst === `${currentUser.firstName} ${currentUser.lastName}`;
   };
 
   return (
@@ -489,11 +510,13 @@ const BatchManagement: React.FC = () => {
                 <tbody>
                   {prepBatches.map((batch) => {
                     const batchSamples = getSamplesInBatch(batch.id);
+                    const canEdit = canEditBatch(batch);
+                    
                     return (
                       <tr key={batch.id} className="border-b border-slate-100 hover:bg-slate-50">
                         <td className="py-3 px-4">
                           <button
-                            onClick={() => handlePrepBatchClick(batch)}
+                            onClick={() => handleViewBatch(batch)}
                             className="font-mono text-sm text-blue-600 hover:text-blue-800 font-medium"
                           >
                             {batch.id}
@@ -524,19 +547,28 @@ const BatchManagement: React.FC = () => {
                         <td className="py-3 px-4">
                           <div className="flex space-x-2">
                             <button
-                              onClick={() => handlePrepBatchClick(batch)}
-                              className="text-blue-600 hover:text-blue-800 p-1"
-                              title="View Details"
+                              onClick={() => handleViewBatch(batch)}
+                              className="bg-slate-100 text-slate-700 px-3 py-1 rounded text-sm hover:bg-slate-200 flex items-center space-x-1"
+                              title="View Batch Details"
                             >
-                              <Eye className="h-4 w-4" />
+                              <Eye className="h-3 w-3" />
+                              <span>View</span>
                             </button>
-                            <button
-                              onClick={() => handlePrepBatchClick(batch)}
-                              className="text-slate-600 hover:text-slate-800 p-1"
-                              title="Edit Batch"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => handleEditBatch(batch)}
+                                className="bg-blue-100 text-blue-700 px-3 py-1 rounded text-sm hover:bg-blue-200 flex items-center space-x-1"
+                                title="Edit Batch"
+                              >
+                                <Edit className="h-3 w-3" />
+                                <span>Edit</span>
+                              </button>
+                            )}
+                            {!canEdit && (
+                              <span className="text-xs text-slate-400 px-3 py-1">
+                                View Only
+                              </span>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -612,6 +644,7 @@ const BatchManagement: React.FC = () => {
           samples={getSamplesInBatch(selectedPrepBatch.id)}
           equipmentOptions={equipmentOptions}
           reagentOptions={reagentOptions}
+          viewMode={viewMode}
           onClose={() => {
             setShowPrepBatchDetails(false);
             setSelectedPrepBatch(null);
@@ -723,9 +756,10 @@ const PrepBatchDetailsModal: React.FC<{
   samples: any[];
   equipmentOptions: any[];
   reagentOptions: any[];
+  viewMode: 'view' | 'edit';
   onClose: () => void;
   onUpdate: (batch: PrepBatch) => void;
-}> = ({ batch, samples, equipmentOptions, reagentOptions, onClose, onUpdate }) => {
+}> = ({ batch, samples, equipmentOptions, reagentOptions, viewMode, onClose, onUpdate }) => {
   const [editedBatch, setEditedBatch] = useState<PrepBatch>({ ...batch });
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>(batch.metadata.equipment || []);
   const [selectedReagents, setSelectedReagents] = useState<any[]>(batch.metadata.reagents || []);
@@ -734,6 +768,8 @@ const PrepBatchDetailsModal: React.FC<{
   const isRSABatch = batch.assayType === 'RSA' || batch.assayType === 'SOL' || batch.id.includes('RSA');
 
   const handleEquipmentChange = (equipmentId: string) => {
+    if (viewMode === 'view') return;
+    
     setSelectedEquipment(prev => 
       prev.includes(equipmentId)
         ? prev.filter(id => id !== equipmentId)
@@ -742,6 +778,8 @@ const PrepBatchDetailsModal: React.FC<{
   };
 
   const addReagent = () => {
+    if (viewMode === 'view') return;
+    
     setSelectedReagents(prev => [...prev, {
       reagentId: '',
       lotNumber: '',
@@ -751,16 +789,22 @@ const PrepBatchDetailsModal: React.FC<{
   };
 
   const updateReagent = (index: number, field: string, value: any) => {
+    if (viewMode === 'view') return;
+    
     setSelectedReagents(prev => prev.map((reagent, i) => 
       i === index ? { ...reagent, [field]: value } : reagent
     ));
   };
 
   const removeReagent = (index: number) => {
+    if (viewMode === 'view') return;
+    
     setSelectedReagents(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSave = () => {
+    if (viewMode === 'view') return;
+    
     const updatedBatch = {
       ...editedBatch,
       metadata: {
@@ -773,6 +817,8 @@ const PrepBatchDetailsModal: React.FC<{
   };
 
   const handleStatusChange = (newStatus: string) => {
+    if (viewMode === 'view') return;
+    
     setEditedBatch(prev => ({ ...prev, status: newStatus as any }));
   };
 
@@ -782,7 +828,7 @@ const PrepBatchDetailsModal: React.FC<{
         <div className="p-6 border-b border-slate-200">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-semibold text-slate-900">
-              {isRSABatch ? 'RSA Prep Batch' : 'Prep Batch'} {batch.id} Details
+              {viewMode === 'edit' ? 'Edit' : 'View'} {isRSABatch ? 'RSA Prep Batch' : 'Prep Batch'} {batch.id}
             </h3>
             <button
               onClick={onClose}
@@ -791,6 +837,11 @@ const PrepBatchDetailsModal: React.FC<{
               <X className="h-6 w-6" />
             </button>
           </div>
+          {viewMode === 'view' && (
+            <p className="text-sm text-slate-600 mt-2">
+              You are viewing this batch in read-only mode.
+            </p>
+          )}
         </div>
 
         <div className="p-6 space-y-6">
@@ -802,7 +853,10 @@ const PrepBatchDetailsModal: React.FC<{
               <div className="space-y-2">
                 {equipmentOptions.map(equipment => (
                   <div key={equipment.id} className="flex items-center space-x-2">
-                    <select className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm">
+                    <select 
+                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm"
+                      disabled={viewMode === 'view'}
+                    >
                       <option value="">{equipment.name}</option>
                       <option value={equipment.id}>{equipment.id}</option>
                     </select>
@@ -815,12 +869,14 @@ const PrepBatchDetailsModal: React.FC<{
             <div className="bg-slate-50 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-lg font-semibold text-slate-900">Reagent Selection</h4>
-                <button
-                  onClick={addReagent}
-                  className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
-                >
-                  Add Reagent
-                </button>
+                {viewMode === 'edit' && (
+                  <button
+                    onClick={addReagent}
+                    className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                  >
+                    Add Reagent
+                  </button>
+                )}
               </div>
               <div className="space-y-2">
                 {selectedReagents.map((reagent, index) => (
@@ -829,6 +885,7 @@ const PrepBatchDetailsModal: React.FC<{
                       value={reagent.reagentId}
                       onChange={(e) => updateReagent(index, 'reagentId', e.target.value)}
                       className="flex-1 border border-slate-300 rounded px-2 py-1 text-sm"
+                      disabled={viewMode === 'view'}
                     >
                       <option value="">Select Reagent</option>
                       {reagentOptions.map(option => (
@@ -837,12 +894,14 @@ const PrepBatchDetailsModal: React.FC<{
                         </option>
                       ))}
                     </select>
-                    <button
-                      onClick={() => removeReagent(index)}
-                      className="text-red-600 hover:text-red-800 p-1"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
+                    {viewMode === 'edit' && (
+                      <button
+                        onClick={() => removeReagent(index)}
+                        className="text-red-600 hover:text-red-800 p-1"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -857,29 +916,37 @@ const PrepBatchDetailsModal: React.FC<{
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Analyst</label>
-              <select
-                value={editedBatch.analyst}
-                onChange={(e) => setEditedBatch(prev => ({ ...prev, analyst: e.target.value }))}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2"
-              >
-                <option>Jane Smith</option>
-                <option>Dr. Michael Johnson</option>
-                <option>Robert Brown</option>
-                <option>Lisa Garcia</option>
-                <option>Nadia Sherman</option>
-              </select>
+              {viewMode === 'edit' ? (
+                <select
+                  value={editedBatch.analyst}
+                  onChange={(e) => setEditedBatch(prev => ({ ...prev, analyst: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                >
+                  <option>Jane Smith</option>
+                  <option>Dr. Michael Johnson</option>
+                  <option>Robert Brown</option>
+                  <option>Lisa Garcia</option>
+                  <option>Nadia Sherman</option>
+                </select>
+              ) : (
+                <p className="text-slate-900">{batch.analyst}</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-              <select
-                value={editedBatch.status}
-                onChange={(e) => handleStatusChange(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2"
-              >
-                <option value="In Progress">In Progress</option>
-                <option value="Ready for Analysis">Ready for Analysis</option>
-                <option value="Complete">Complete</option>
-              </select>
+              {viewMode === 'edit' ? (
+                <select
+                  value={editedBatch.status}
+                  onChange={(e) => handleStatusChange(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                >
+                  <option value="In Progress">In Progress</option>
+                  <option value="Ready for Analysis">Ready for Analysis</option>
+                  <option value="Complete">Complete</option>
+                </select>
+              ) : (
+                <p className="text-slate-900">{batch.status}</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Sample Count</label>
@@ -915,6 +982,7 @@ const PrepBatchDetailsModal: React.FC<{
                             step="0.001"
                             defaultValue={(Math.random() * 0.5 + 0.05).toFixed(3)}
                             className="w-20 border border-slate-200 rounded px-2 py-1 text-sm"
+                            disabled={viewMode === 'view'}
                           />
                         </td>
                         <td className="border border-slate-300 py-2 px-3 text-sm">
@@ -923,6 +991,7 @@ const PrepBatchDetailsModal: React.FC<{
                             step="0.1"
                             defaultValue="2.5"
                             className="w-16 border border-slate-200 rounded px-2 py-1 text-sm"
+                            disabled={viewMode === 'view'}
                           />
                         </td>
                         <td className="border border-slate-300 py-2 px-3 text-sm">
@@ -930,10 +999,14 @@ const PrepBatchDetailsModal: React.FC<{
                             type="number" 
                             defaultValue="1"
                             className="w-12 border border-slate-200 rounded px-2 py-1 text-sm"
+                            disabled={viewMode === 'view'}
                           />
                         </td>
                         <td className="border border-slate-300 py-2 px-3 text-sm">
-                          <select className="w-20 border border-slate-200 rounded px-2 py-1 text-sm">
+                          <select 
+                            className="w-20 border border-slate-200 rounded px-2 py-1 text-sm"
+                            disabled={viewMode === 'view'}
+                          >
                             <option>ISES</option>
                             <option>ISWS</option>
                             <option>NA</option>
@@ -944,6 +1017,7 @@ const PrepBatchDetailsModal: React.FC<{
                             type="text" 
                             placeholder="Comments..."
                             className="w-32 border border-slate-200 rounded px-2 py-1 text-sm"
+                            disabled={viewMode === 'view'}
                           />
                         </td>
                       </tr>
@@ -973,16 +1047,22 @@ const PrepBatchDetailsModal: React.FC<{
           {/* Notes */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
-            <textarea
-              value={editedBatch.metadata.notes || ''}
-              onChange={(e) => setEditedBatch(prev => ({
-                ...prev,
-                metadata: { ...prev.metadata, notes: e.target.value }
-              }))}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2"
-              rows={3}
-              placeholder="Add any notes about this prep batch..."
-            />
+            {viewMode === 'edit' ? (
+              <textarea
+                value={editedBatch.metadata.notes || ''}
+                onChange={(e) => setEditedBatch(prev => ({
+                  ...prev,
+                  metadata: { ...prev.metadata, notes: e.target.value }
+                }))}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                rows={3}
+                placeholder="Add any notes about this prep batch..."
+              />
+            ) : (
+              <div className="bg-slate-50 rounded-lg px-3 py-2 min-h-[80px]">
+                <p className="text-slate-900">{batch.metadata.notes || 'No notes available'}</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -992,14 +1072,16 @@ const PrepBatchDetailsModal: React.FC<{
             onClick={onClose}
             className="px-4 py-2 text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"
           >
-            Cancel
+            {viewMode === 'edit' ? 'Cancel' : 'Close'}
           </button>
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Save Changes
-          </button>
+          {viewMode === 'edit' && (
+            <button
+              onClick={handleSave}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Save Changes
+            </button>
+          )}
         </div>
       </div>
     </div>
