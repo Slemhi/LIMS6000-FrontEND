@@ -2,29 +2,30 @@ import React, { useState } from 'react';
 import { Bell, User, Search, Calendar, Settings, LogOut, Shield } from 'lucide-react';
 import { format } from 'date-fns';
 
-interface HeaderProps {
-  activeTab: string;
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  roles: Array<{
+    assayType: string;
+    role: string;
+  }>;
+  isActive: boolean;
+  lastLogin: string;
+  createdDate: string;
 }
 
-const Header: React.FC<HeaderProps> = ({ activeTab }) => {
+interface HeaderProps {
+  activeTab: string;
+  currentUser: User | null;
+  onLogout: () => void;
+}
+
+const Header: React.FC<HeaderProps> = ({ activeTab, currentUser, onLogout }) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileTab, setProfileTab] = useState('profile');
-
-  // Current user data (in a real app, this would come from authentication context)
-  const currentUser = {
-    id: 'U002',
-    username: 'jsmith',
-    email: 'jane.smith@nctl.com',
-    firstName: 'Jane',
-    lastName: 'Smith',
-    roles: [
-      { assayType: 'POT', role: 'Prep' },
-      { assayType: 'PES', role: 'Prep' }
-    ],
-    isActive: true,
-    lastLogin: '2024-01-24 08:30:00',
-    createdDate: '2023-06-15'
-  };
 
   const getPageTitle = () => {
     const titles: { [key: string]: string } = {
@@ -41,6 +42,11 @@ const Header: React.FC<HeaderProps> = ({ activeTab }) => {
     return titles[activeTab] || 'NCTL LIMS';
   };
 
+  const handleSignOut = () => {
+    setShowProfileModal(false);
+    onLogout();
+  };
+
   const ProfileTabButton = ({ id, label, icon: Icon }: { id: string; label: string; icon: any }) => (
     <button
       onClick={() => setProfileTab(id)}
@@ -54,6 +60,8 @@ const Header: React.FC<HeaderProps> = ({ activeTab }) => {
       <span>{label}</span>
     </button>
   );
+
+  if (!currentUser) return null;
 
   return (
     <>
@@ -212,7 +220,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab }) => {
                       </div>
                       <div>
                         <span className="font-medium text-slate-700">Last Login:</span>
-                        <span className="text-slate-900 ml-2">{currentUser.lastLogin}</span>
+                        <span className="text-slate-900 ml-2">{new Date(currentUser.lastLogin).toLocaleString()}</span>
                       </div>
                       <div>
                         <span className="font-medium text-slate-700">Member Since:</span>
@@ -375,7 +383,10 @@ const Header: React.FC<HeaderProps> = ({ activeTab }) => {
 
             {/* Action Buttons */}
             <div className="p-6 border-t border-slate-200 flex justify-between">
-              <button className="flex items-center space-x-2 text-red-600 hover:text-red-800">
+              <button 
+                onClick={handleSignOut}
+                className="flex items-center space-x-2 text-red-600 hover:text-red-800 transition-colors"
+              >
                 <LogOut className="h-4 w-4" />
                 <span>Sign Out</span>
               </button>

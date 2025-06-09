@@ -3,7 +3,18 @@ import { Plus, Users, BarChart3, Clock, CheckCircle, AlertCircle, Search, Filter
 import { mockSamples, mockPrepBatches, mockAnalyticalBatches, mockInventory } from '../../data/mockData';
 import { PrepBatch, AnalyticalBatch } from '../../types';
 
-const BatchManagement: React.FC = () => {
+interface User {
+  id: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+}
+
+interface BatchManagementProps {
+  currentUser: User | null;
+}
+
+const BatchManagement: React.FC<BatchManagementProps> = ({ currentUser }) => {
   const [activeTab, setActiveTab] = useState('unbatched');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTest, setFilterTest] = useState('all');
@@ -19,14 +30,6 @@ const BatchManagement: React.FC = () => {
   const [newBatchAssayType, setNewBatchAssayType] = useState('POT');
   const [newBatchAnalyst, setNewBatchAnalyst] = useState('Jane Smith');
   const [viewMode, setViewMode] = useState<'view' | 'edit'>('view');
-
-  // Current user context (in a real app, this would come from authentication)
-  const currentUser = {
-    id: 'U002',
-    username: 'jsmith',
-    firstName: 'Jane',
-    lastName: 'Smith'
-  };
 
   // Equipment and Reagent options (in real app, these would come from inventory/equipment management)
   const equipmentOptions = [
@@ -214,6 +217,7 @@ const BatchManagement: React.FC = () => {
 
   const canEditBatch = (batch: PrepBatch) => {
     // User can edit if they created the batch (analyst matches current user)
+    if (!currentUser) return false;
     return batch.analyst === `${currentUser.firstName} ${currentUser.lastName}`;
   };
 
