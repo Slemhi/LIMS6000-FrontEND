@@ -1,5 +1,5 @@
 // Updated mock data to include RSA test type in sample required tests
-import { Sample, Assay, PrepBatch, AnalyticalBatch, InventoryItem, SOP, User } from '../types';
+import { Sample, Assay, PrepBatch, AnalyticalBatch, InventoryItem, SOP, User, RoleDefinition, Permission } from '../types';
 
 // Helper function to generate random samples
 const generateRandomSamples = (): Sample[] => {
@@ -221,6 +221,249 @@ export const mockSamples: Sample[] = [
   ...generateRandomSamples()
 ];
 
+// Define system permissions
+export const mockPermissions: Permission[] = [
+  // Sample Management
+  { id: 'sample-create', name: 'Create Samples', description: 'Add new samples to the system', category: 'Sample Management', action: 'create', resource: 'samples' },
+  { id: 'sample-read', name: 'View Samples', description: 'View sample information', category: 'Sample Management', action: 'read', resource: 'samples' },
+  { id: 'sample-update', name: 'Edit Samples', description: 'Modify sample information', category: 'Sample Management', action: 'update', resource: 'samples' },
+  { id: 'sample-delete', name: 'Delete Samples', description: 'Remove samples from the system', category: 'Sample Management', action: 'delete', resource: 'samples' },
+  
+  // Batch Management
+  { id: 'batch-create', name: 'Create Batches', description: 'Create prep and analytical batches', category: 'Batch Management', action: 'create', resource: 'batches' },
+  { id: 'batch-read', name: 'View Batches', description: 'View batch information', category: 'Batch Management', action: 'read', resource: 'batches' },
+  { id: 'batch-update', name: 'Edit Batches', description: 'Modify batch information', category: 'Batch Management', action: 'update', resource: 'batches' },
+  { id: 'batch-execute', name: 'Execute Batches', description: 'Perform batch operations', category: 'Batch Management', action: 'execute', resource: 'batches' },
+  
+  // Analysis
+  { id: 'analysis-create', name: 'Create Analysis', description: 'Set up analytical runs', category: 'Analysis', action: 'create', resource: 'analysis' },
+  { id: 'analysis-read', name: 'View Analysis', description: 'View analytical data', category: 'Analysis', action: 'read', resource: 'analysis' },
+  { id: 'analysis-update', name: 'Edit Analysis', description: 'Modify analytical data', category: 'Analysis', action: 'update', resource: 'analysis' },
+  { id: 'analysis-execute', name: 'Execute Analysis', description: 'Run analytical instruments', category: 'Analysis', action: 'execute', resource: 'analysis' },
+  
+  // QC
+  { id: 'qc-read', name: 'View QC Data', description: 'View quality control information', category: 'QC', action: 'read', resource: 'qc' },
+  { id: 'qc-approve', name: 'Approve QC', description: 'Approve quality control results', category: 'QC', action: 'approve', resource: 'qc' },
+  { id: 'qc-update', name: 'Edit QC Data', description: 'Modify QC information', category: 'QC', action: 'update', resource: 'qc' },
+  
+  // Administration
+  { id: 'admin-users', name: 'Manage Users', description: 'Create, edit, and delete user accounts', category: 'Administration', action: 'update', resource: 'users' },
+  { id: 'admin-roles', name: 'Manage Roles', description: 'Create and modify user roles', category: 'Administration', action: 'update', resource: 'roles' },
+  { id: 'admin-assays', name: 'Manage Assays', description: 'Create and modify assay configurations', category: 'Administration', action: 'update', resource: 'assays' },
+  { id: 'admin-system', name: 'System Settings', description: 'Modify system configuration', category: 'Administration', action: 'update', resource: 'system' },
+  
+  // Reporting
+  { id: 'report-create', name: 'Generate Reports', description: 'Create and generate reports', category: 'Reporting', action: 'create', resource: 'reports' },
+  { id: 'report-read', name: 'View Reports', description: 'View generated reports', category: 'Reporting', action: 'read', resource: 'reports' },
+  { id: 'coa-create', name: 'Generate CoA', description: 'Create certificates of analysis', category: 'Reporting', action: 'create', resource: 'coa' },
+  { id: 'coa-approve', name: 'Approve CoA', description: 'Approve certificates of analysis', category: 'Reporting', action: 'approve', resource: 'coa' }
+];
+
+// Define role definitions with permissions
+export const mockRoleDefinitions: RoleDefinition[] = [
+  // System Admin Role
+  {
+    id: 'admin',
+    name: 'Administrator',
+    description: 'Full system access and administration',
+    permissions: mockPermissions, // All permissions
+    isSystemRole: true,
+    createdDate: '2024-01-01'
+  },
+  
+  // General Roles
+  {
+    id: 'receiving',
+    name: 'Sample Receiving',
+    description: 'Sample intake and manifest processing',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('sample-') || p.id === 'report-read'
+    ),
+    isSystemRole: true,
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'qc-manager',
+    name: 'QC Manager',
+    description: 'Quality control oversight and approval',
+    permissions: mockPermissions.filter(p => 
+      p.category === 'QC' || p.id.includes('read') || p.id.includes('coa-')
+    ),
+    isSystemRole: true,
+    createdDate: '2024-01-01'
+  },
+  
+  // Auto-generated assay-specific roles
+  {
+    id: 'pot-prep',
+    name: 'POT - Sample Preparation',
+    description: 'Potency analysis sample preparation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('sample-read') || p.id.includes('batch-') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'POT',
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'pot-analysis',
+    name: 'POT - Analysis',
+    description: 'Potency analysis instrument operation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('analysis-') || p.id.includes('batch-read') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'POT',
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'pes-prep',
+    name: 'PES - Sample Preparation',
+    description: 'Pesticide analysis sample preparation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('sample-read') || p.id.includes('batch-') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'PES',
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'pes-analysis',
+    name: 'PES - Analysis',
+    description: 'Pesticide analysis instrument operation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('analysis-') || p.id.includes('batch-read') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'PES',
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'hmt-prep',
+    name: 'HMT - Sample Preparation',
+    description: 'Heavy metals analysis sample preparation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('sample-read') || p.id.includes('batch-') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'HMT',
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'hmt-analysis',
+    name: 'HMT - Analysis',
+    description: 'Heavy metals analysis instrument operation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('analysis-') || p.id.includes('batch-read') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'HMT',
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'sol-prep',
+    name: 'SOL - Sample Preparation',
+    description: 'Solvents analysis sample preparation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('sample-read') || p.id.includes('batch-') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'SOL',
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'sol-analysis',
+    name: 'SOL - Analysis',
+    description: 'Solvents analysis instrument operation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('analysis-') || p.id.includes('batch-read') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'SOL',
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'rsa-prep',
+    name: 'RSA - Sample Preparation',
+    description: 'Residual solvents analysis sample preparation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('sample-read') || p.id.includes('batch-') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'RSA',
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'rsa-analysis',
+    name: 'RSA - Analysis',
+    description: 'Residual solvents analysis instrument operation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('analysis-') || p.id.includes('batch-read') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'RSA',
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'nut-prep',
+    name: 'NUT - Sample Preparation',
+    description: 'Nutrients analysis sample preparation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('sample-read') || p.id.includes('batch-') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'NUT',
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'nut-analysis',
+    name: 'NUT - Analysis',
+    description: 'Nutrients analysis instrument operation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('analysis-') || p.id.includes('batch-read') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'NUT',
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'mic-prep',
+    name: 'MIC - Sample Preparation',
+    description: 'Microbials analysis sample preparation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('sample-read') || p.id.includes('batch-') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'MIC',
+    createdDate: '2024-01-01'
+  },
+  
+  {
+    id: 'mic-analysis',
+    name: 'MIC - Analysis',
+    description: 'Microbials analysis instrument operation',
+    permissions: mockPermissions.filter(p => 
+      p.id.includes('analysis-') || p.id.includes('batch-read') || p.id.includes('qc-read')
+    ),
+    isSystemRole: true,
+    assayType: 'MIC',
+    createdDate: '2024-01-01'
+  }
+];
+
 export const mockAssays: Assay[] = [
   {
     id: 'POT',
@@ -246,7 +489,9 @@ export const mockAssays: Assay[] = [
       { id: 'MRL', name: 'Method Reporting Limit', description: 'Detection limit verification', frequency: 10, limits: { lower: 80, upper: 120 } },
       { id: 'HCV', name: 'High Calibration Verification', description: 'High-level calibration check', frequency: 20, limits: { lower: 85, upper: 115 } },
       { id: 'LCV', name: 'Low Calibration Verification', description: 'Low-level calibration check', frequency: 20, limits: { lower: 80, upper: 120 } }
-    ]
+    ],
+    version: '2.1',
+    revisionHistory: []
   },
   {
     id: 'PES',
@@ -271,7 +516,9 @@ export const mockAssays: Assay[] = [
       { id: 'MS', name: 'Matrix Spike', description: 'Matrix interference check', frequency: 20, limits: { lower: 70, upper: 130 } },
       { id: 'MSD', name: 'Matrix Spike Duplicate', description: 'Precision check', frequency: 20, limits: { lower: 70, upper: 130 } },
       { id: 'CCV', name: 'Continuing Calibration Verification', description: 'Daily calibration check', frequency: 1, limits: { lower: 85, upper: 115 } }
-    ]
+    ],
+    version: '1.0',
+    revisionHistory: []
   },
   {
     id: 'HMT',
@@ -289,7 +536,9 @@ export const mockAssays: Assay[] = [
     qcTypes: [
       { id: 'CCV', name: 'Continuing Calibration Verification', description: 'Daily calibration check', frequency: 1, limits: { lower: 85, upper: 115 } },
       { id: 'CRM', name: 'Certified Reference Material', description: 'Accuracy verification', frequency: 20, limits: { lower: 80, upper: 120 } }
-    ]
+    ],
+    version: '1.0',
+    revisionHistory: []
   },
   {
     id: 'SOL',
@@ -313,7 +562,9 @@ export const mockAssays: Assay[] = [
     qcTypes: [
       { id: 'CCV', name: 'Continuing Calibration Verification', description: 'Daily calibration check', frequency: 1, limits: { lower: 85, upper: 115 } },
       { id: 'MS', name: 'Matrix Spike', description: 'Matrix interference check', frequency: 20, limits: { lower: 70, upper: 130 } }
-    ]
+    ],
+    version: '1.0',
+    revisionHistory: []
   },
   // NEW RSA Assay
   {
@@ -342,7 +593,9 @@ export const mockAssays: Assay[] = [
       { id: 'MS', name: 'Matrix Spike', description: 'Matrix interference check', frequency: 20, limits: { lower: 70, upper: 130 } },
       { id: 'MSD', name: 'Matrix Spike Duplicate', description: 'Precision check', frequency: 20, limits: { lower: 70, upper: 130 } },
       { id: 'LCS', name: 'Laboratory Control Sample', description: 'Method accuracy check', frequency: 20, limits: { lower: 80, upper: 120 } }
-    ]
+    ],
+    version: '1.0',
+    revisionHistory: []
   },
   {
     id: 'NUT',
@@ -366,7 +619,9 @@ export const mockAssays: Assay[] = [
     qcTypes: [
       { id: 'CCV', name: 'Continuing Calibration Verification', description: 'Daily calibration check', frequency: 1, limits: { lower: 85, upper: 115 } },
       { id: 'CRM', name: 'Certified Reference Material', description: 'Accuracy verification', frequency: 20, limits: { lower: 80, upper: 120 } }
-    ]
+    ],
+    version: '1.0',
+    revisionHistory: []
   },
   {
     id: 'MIC',
@@ -386,7 +641,9 @@ export const mockAssays: Assay[] = [
     qcTypes: [
       { id: 'PC', name: 'Positive Control', description: 'Known positive sample', frequency: 1, limits: { lower: 50, upper: 200 } },
       { id: 'NC', name: 'Negative Control', description: 'Sterile control', frequency: 1, limits: { lower: 0, upper: 10 } }
-    ]
+    ],
+    version: '1.0',
+    revisionHistory: []
   }
 ];
 

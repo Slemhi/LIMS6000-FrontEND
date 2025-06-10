@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Users, FlaskRound as Flask, FileText, Plus, Edit, Trash2, Clock, CheckCircle, X, AlertTriangle } from 'lucide-react';
-import { mockAssays, mockUsers } from '../../data/mockData';
-import { Assay, User } from '../../types';
+import { Settings, Users, FlaskRound as Flask, FileText, Plus, Edit, Trash2, Clock, CheckCircle, X, AlertTriangle, Shield, Save, UserPlus } from 'lucide-react';
+import { mockAssays, mockUsers, mockRoleDefinitions, mockPermissions } from '../../data/mockData';
+import { Assay, User, RoleDefinition, Permission } from '../../types';
 
 interface PendingUser {
   id: string;
@@ -21,9 +21,19 @@ const Administration: React.FC = () => {
   const [assays, setAssays] = useState<Assay[]>(mockAssays);
   const [users, setUsers] = useState<User[]>(mockUsers);
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [roleDefinitions, setRoleDefinitions] = useState<RoleDefinition[]>(mockRoleDefinitions);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [pendingUserToDelete, setPendingUserToDelete] = useState<PendingUser | null>(null);
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [showCreateRoleModal, setShowCreateRoleModal] = useState(false);
+  const [showNewAssayModal, setShowNewAssayModal] = useState(false);
+  const [newAssayForm, setNewAssayForm] = useState({
+    code: '',
+    name: '',
+    description: ''
+  });
 
   // Debug function to show all localStorage data
   const debugAllData = () => {
@@ -33,6 +43,7 @@ const Administration: React.FC = () => {
     console.log('Registration data:', JSON.parse(localStorage.getItem('nctl_pending_registrations') || '[]'));
     console.log('Current users state:', users);
     console.log('Mock users:', mockUsers);
+    console.log('Role definitions:', roleDefinitions);
     console.log('===========================');
   };
 
@@ -352,6 +363,124 @@ const Administration: React.FC = () => {
     setPendingUserToDelete(null);
   };
 
+  const handleEditUser = (user: User) => {
+    setEditingUser({ ...user });
+    setShowEditUserModal(true);
+  };
+
+  const handleSaveUserRoles = () => {
+    if (!editingUser) return;
+
+    // Update user in the users list
+    setUsers(prev => prev.map(u => u.id === editingUser.id ? editingUser : u));
+
+    // Update in approved users if they exist there
+    const approvedUsers = getApprovedUsers();
+    const updatedApprovedUsers = approvedUsers.map((u: any) => 
+      u.username === editingUser.username 
+        ? { ...u, roles: editingUser.roles }
+        : u
+    );
+    localStorage.setItem('nctl_approved_users', JSON.stringify(updatedApprovedUsers));
+
+    setShowEditUserModal(false);
+    setEditingUser(null);
+    alert(`Roles updated for ${editingUser.firstName} ${editingUser.lastName}`);
+  };
+
+  const addRoleToUser = () => {
+    if (!editingUser) return;
+    
+    const newRole = { assayType: 'POT', role: 'Prep' as const };
+    setEditingUser(prev => prev ? {
+      ...prev,
+      roles: [...prev.roles, newRole]
+    } : null);
+  };
+
+  const removeRoleFromUser = (index: number) => {
+    if (!editingUser) return;
+    
+    setEditingUser(prev => prev ? {
+      ...prev,
+      roles: prev.roles.filter((_, i) => i !== index)
+    } : null);
+  };
+
+  const updateUserRole = (index: number, field: 'assayType' | 'role', value: string) => {
+    if (!editingUser) return;
+    
+    setEditingUser(prev => prev ? {
+      ...prev,
+      roles: prev.roles.map((role, i) => 
+        i === index ? { ...role, [field]: value } : role
+      )
+    } : null);
+  };
+
+  const handleCreateAssay = () => {
+    if (!newAssayForm.code || !newAssayForm.name) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    // Check if assay code already exists
+    if (assays.find(a => a.code === newAssayForm.code.toUpperCase())) {
+      alert('Assay code already exists');
+      return;
+    }
+
+    const newAssay: Assay = {
+      id: newAssayForm.code.toUpperCase(),
+      name: newAssayForm.name,
+      code: newAssayForm.code.toUpperCase(),
+      description: newAssayForm.description,
+      isActive: true,
+      createdDate: new Date().toISOString().split('T')[0],
+      analytes: [],
+      qcTypes: [],
+      version: '1.0',
+      revisionHistory: []
+    };
+
+    // Add the new assay
+    setAssays(prev => [...prev, newAssay]);
+
+    // Auto-create roles for the new assay
+    const prepRole: RoleDefinition = {
+      id: `${newAssayForm.code.toLowerCase()}-prep`,
+      name: `${newAssayForm.code.toUpperCase()} - Sample Preparation`,
+      description: `${newAssayForm.name} sample preparation`,
+      permissions: mockPermissions.filter(p => 
+        p.id.includes('sample-read') || p.id.includes('batch-') || p.id.includes('qc-read')
+      ),
+      isSystemRole: true,
+      assayType: newAssayForm.code.toUpperCase(),
+      createdDate: new Date().toISOString().split('T')[0]
+    };
+
+    const analysisRole: RoleDefinition = {
+      id: `${newAssayForm.code.toLowerCase()}-analysis`,
+      name: `${newAssayForm.code.toUpperCase()} - Analysis`,
+      description: `${newAssayForm.name} instrument operation and analysis`,
+      permissions: mockPermissions.filter(p => 
+        p.id.includes('analysis-') || p.id.includes('batch-read') || p.id.includes('qc-read')
+      ),
+      isSystemRole: true,
+      assayType: newAssayForm.code.toUpperCase(),
+      createdDate: new Date().toISOString().split('T')[0]
+    };
+
+    // Add the new roles
+    setRoleDefinitions(prev => [...prev, prepRole, analysisRole]);
+
+    alert(`Successfully created assay ${newAssayForm.code.toUpperCase()} with auto-generated roles:\n- ${prepRole.name}\n- ${analysisRole.name}`);
+
+    // Reset form
+    setNewAssayForm({ code: '', name: '', description: '' });
+    setShowNewAssayModal(false);
+  };
+
   const pendingCount = pendingUsers.filter(u => u.status === 'Pending').length;
 
   return (
@@ -375,6 +504,7 @@ const Administration: React.FC = () => {
         <TabButton id="pending" label="Pending Accounts" icon={Clock} count={pendingCount} />
         <TabButton id="assays" label="Assay Management" icon={Flask} />
         <TabButton id="users" label="User Management" icon={Users} />
+        <TabButton id="roles" label="Role Management" icon={Shield} />
         <TabButton id="settings" label="System Settings" icon={Settings} />
       </div>
 
@@ -496,7 +626,10 @@ const Administration: React.FC = () => {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-900">Assay Configuration</h3>
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+            <button 
+              onClick={() => setShowNewAssayModal(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+            >
               <Plus className="h-4 w-4" />
               <span>Add Assay</span>
             </button>
@@ -524,22 +657,28 @@ const Administration: React.FC = () => {
                   <div>
                     <span className="text-sm font-medium text-slate-700">Analytes:</span>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {assay.analytes.map((analyte) => (
+                      {assay.analytes.slice(0, 5).map((analyte) => (
                         <span key={analyte.id} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
                           {analyte.name} ({analyte.unit})
                         </span>
                       ))}
+                      {assay.analytes.length > 5 && (
+                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-600">
+                          +{assay.analytes.length - 5} more
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   <div>
-                    <span className="text-sm font-medium text-slate-700">QC Types:</span>
+                    <span className="text-sm font-medium text-slate-700">Auto-Generated Roles:</span>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {assay.qcTypes.map((qc) => (
-                        <span key={qc.id} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
-                          {qc.name}
-                        </span>
-                      ))}
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                        {assay.code}-Prep
+                      </span>
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                        {assay.code}-Analysis
+                      </span>
                     </div>
                   </div>
 
@@ -616,7 +755,11 @@ const Administration: React.FC = () => {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex space-x-2">
-                          <button className="text-blue-600 hover:text-blue-800 p-1">
+                          <button 
+                            onClick={() => handleEditUser(user)}
+                            className="text-blue-600 hover:text-blue-800 p-1"
+                            title="Edit user roles"
+                          >
                             <Edit className="h-4 w-4" />
                           </button>
                           <button 
@@ -638,6 +781,82 @@ const Administration: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Role Management */}
+      {activeTab === 'roles' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-900">Role Management</h3>
+            <button 
+              onClick={() => setShowCreateRoleModal(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Role</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {roleDefinitions.map((role) => (
+              <div key={role.id} className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="text-lg font-semibold text-slate-900">{role.name}</h4>
+                    <p className="text-sm text-slate-600">{role.description}</p>
+                    {role.assayType && (
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-1">
+                        {role.assayType}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex space-x-2">
+                    {!role.isSystemRole && (
+                      <>
+                        <button className="p-2 text-slate-600 hover:text-blue-600">
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button className="p-2 text-slate-600 hover:text-red-600">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                    {role.isSystemRole && (
+                      <span className="text-xs text-slate-500 px-2 py-1 bg-slate-100 rounded">
+                        System Role
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-sm font-medium text-slate-700">Permissions ({role.permissions.length}):</span>
+                    <div className="mt-1 max-h-32 overflow-y-auto">
+                      <div className="flex flex-wrap gap-1">
+                        {role.permissions.slice(0, 6).map((permission) => (
+                          <span key={permission.id} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                            {permission.name}
+                          </span>
+                        ))}
+                        {role.permissions.length > 6 && (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-600">
+                            +{role.permissions.length - 6} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Created:</span>
+                    <span className="font-medium text-slate-900">{role.createdDate}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -728,6 +947,234 @@ const Administration: React.FC = () => {
             <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
               Save Settings
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Roles Modal */}
+      {showEditUserModal && editingUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-slate-900">
+                  Edit Roles - {editingUser.firstName} {editingUser.lastName}
+                </h3>
+                <button
+                  onClick={() => setShowEditUserModal(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-blue-900 mb-2">Role Assignment</h4>
+                <p className="text-sm text-blue-700">
+                  Assign specific roles to control what this user can access and perform in the system.
+                  Each role is tied to an assay type and defines the user's permissions for that area.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-lg font-semibold text-slate-900">Current Roles</h4>
+                  <button
+                    onClick={addRoleToUser}
+                    className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    <span>Add Role</span>
+                  </button>
+                </div>
+
+                {editingUser.roles.map((role, index) => (
+                  <div key={index} className="bg-slate-50 rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Assay Type</label>
+                        <select
+                          value={role.assayType}
+                          onChange={(e) => updateUserRole(index, 'assayType', e.target.value)}
+                          className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                        >
+                          <option value="ALL">All Assays</option>
+                          {assays.map(assay => (
+                            <option key={assay.code} value={assay.code}>{assay.code} - {assay.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+                        <select
+                          value={role.role}
+                          onChange={(e) => updateUserRole(index, 'role', e.target.value as any)}
+                          className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                        >
+                          <option value="Prep">Sample Preparation</option>
+                          <option value="Analysis">Analysis</option>
+                          <option value="QC Manager">QC Manager</option>
+                          <option value="Receiving">Sample Receiving</option>
+                          <option value="Admin">Administrator</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-end">
+                        <button
+                          onClick={() => removeRoleFromUser(index)}
+                          className="bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
+                          disabled={editingUser.roles.length === 1}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Show role description */}
+                    <div className="mt-3 p-3 bg-white rounded border">
+                      <p className="text-sm text-slate-600">
+                        <strong>Permissions:</strong> {role.assayType === 'ALL' ? 'Full system access' : 
+                        role.role === 'Prep' ? `Sample preparation for ${role.assayType} analysis` :
+                        role.role === 'Analysis' ? `Instrument operation and data analysis for ${role.assayType}` :
+                        role.role === 'QC Manager' ? 'Quality control oversight and approval' :
+                        role.role === 'Receiving' ? 'Sample intake and manifest processing' :
+                        'Full administrative access'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+
+                {editingUser.roles.length === 0 && (
+                  <div className="text-center py-8 text-slate-500">
+                    No roles assigned. Click "Add Role" to assign permissions.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-200 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowEditUserModal(false)}
+                className="px-4 py-2 text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveUserRoles}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+              >
+                <Save className="h-4 w-4" />
+                <span>Save Roles</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create New Assay Modal */}
+      {showNewAssayModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full">
+            <div className="p-6 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-slate-900">Create New Assay</h3>
+                <button
+                  onClick={() => setShowNewAssayModal(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-green-900 mb-2">Auto-Role Creation</h4>
+                <p className="text-sm text-green-700">
+                  When you create a new assay, the system will automatically generate two roles:
+                  <strong> {newAssayForm.code.toUpperCase() || '[CODE]'}-Prep</strong> and 
+                  <strong> {newAssayForm.code.toUpperCase() || '[CODE]'}-Analysis</strong> with appropriate permissions.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Assay Code *</label>
+                  <input
+                    type="text"
+                    value={newAssayForm.code}
+                    onChange={(e) => setNewAssayForm(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                    placeholder="e.g., TER (3-4 characters)"
+                    maxLength={4}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Short abbreviation for the assay (will be uppercase)</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Assay Name *</label>
+                  <input
+                    type="text"
+                    value={newAssayForm.name}
+                    onChange={(e) => setNewAssayForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                    placeholder="e.g., Terpenes Analysis"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                  <textarea
+                    value={newAssayForm.description}
+                    onChange={(e) => setNewAssayForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                    rows={3}
+                    placeholder="Brief description of what this assay tests for..."
+                  />
+                </div>
+              </div>
+
+              {newAssayForm.code && (
+                <div className="bg-slate-50 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-slate-700 mb-2">Roles to be created:</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                        {newAssayForm.code}-Prep
+                      </span>
+                      <span className="text-sm text-slate-600">Sample preparation role</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                        {newAssayForm.code}-Analysis
+                      </span>
+                      <span className="text-sm text-slate-600">Analysis and instrument operation role</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-slate-200 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowNewAssayModal(false)}
+                className="px-4 py-2 text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateAssay}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Create Assay & Roles</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -212,6 +212,26 @@ export interface UserRole {
   role: 'Prep' | 'Analysis' | 'Admin' | 'Receiving' | 'QC Manager';
 }
 
+// New interfaces for role management
+export interface RoleDefinition {
+  id: string;
+  name: string;
+  description: string;
+  permissions: Permission[];
+  isSystemRole: boolean; // true for auto-generated roles like POT-Prep
+  createdDate: string;
+  assayType?: string; // for assay-specific roles
+}
+
+export interface Permission {
+  id: string;
+  name: string;
+  description: string;
+  category: 'Sample Management' | 'Batch Management' | 'Analysis' | 'QC' | 'Administration' | 'Reporting';
+  action: 'create' | 'read' | 'update' | 'delete' | 'approve' | 'execute';
+  resource: string;
+}
+
 export interface CoA {
   id: string;
   sampleId: string;
