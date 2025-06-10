@@ -224,6 +224,13 @@ const Administration: React.FC = () => {
     }
   };
 
+  // Combine all users for display
+  const allUsers = [
+    ...users.map(u => ({ ...u, source: 'system', status: 'Active' })),
+    ...approvedUsers.map(u => ({ ...u, source: 'approved', status: 'Active' })),
+    ...pendingUsers.map(u => ({ ...u, source: 'pending', status: 'Pending' }))
+  ];
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -315,67 +322,15 @@ const Administration: React.FC = () => {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-900">User Management</h3>
+            {pendingUsers.length > 0 && (
+              <div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+                {pendingUsers.length} pending approval{pendingUsers.length !== 1 ? 's' : ''}
+              </div>
+            )}
           </div>
 
-          {/* Pending Users */}
-          {pendingUsers.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200">
-              <div className="p-6 border-b border-slate-200">
-                <h4 className="text-lg font-semibold text-slate-900">Pending Account Requests ({pendingUsers.length})</h4>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="text-left py-3 px-4 font-medium text-slate-700">User</th>
-                      <th className="text-left py-3 px-4 font-medium text-slate-700">Username</th>
-                      <th className="text-left py-3 px-4 font-medium text-slate-700">Email</th>
-                      <th className="text-left py-3 px-4 font-medium text-slate-700">Department</th>
-                      <th className="text-left py-3 px-4 font-medium text-slate-700">Request Date</th>
-                      <th className="text-left py-3 px-4 font-medium text-slate-700">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingUsers.map((user) => (
-                      <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="py-3 px-4">
-                          <div className="font-medium text-slate-900">
-                            {user.firstName} {user.lastName}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 font-mono text-sm">{user.username}</td>
-                        <td className="py-3 px-4 text-slate-600">{user.email}</td>
-                        <td className="py-3 px-4 text-slate-600">{user.department}</td>
-                        <td className="py-3 px-4 text-slate-600">{user.requestDate}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => approveUser(user)}
-                              className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => deleteUser(user, 'pending')}
-                              className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Approved Users */}
+          {/* All Users Table */}
           <div className="bg-white rounded-lg shadow-sm border border-slate-200">
-            <div className="p-6 border-b border-slate-200">
-              <h4 className="text-lg font-semibold text-slate-900">Active Users</h4>
-            </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -389,48 +344,76 @@ const Administration: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...users, ...approvedUsers].map((user) => (
-                    <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  {allUsers.map((user) => (
+                    <tr key={`${user.source}-${user.id}`} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="py-3 px-4">
                         <div>
                           <div className="font-medium text-slate-900">
                             {user.firstName} {user.lastName}
                           </div>
+                          {user.department && (
+                            <div className="text-xs text-slate-500">{user.department}</div>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 px-4 font-mono text-sm">{user.username}</td>
                       <td className="py-3 px-4 text-slate-600">{user.email}</td>
                       <td className="py-3 px-4">
-                        <div className="flex flex-wrap gap-1">
-                          {user.roles?.map((role: any, index: number) => (
-                            <span key={index} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                              {role.assayType !== 'ALL' ? `${role.assayType}-` : ''}{role.role}
-                            </span>
-                          ))}
-                        </div>
+                        {user.status === 'Pending' ? (
+                          <span className="text-sm text-slate-500">Roles assigned after approval</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {user.roles?.map((role: any, index: number) => (
+                              <span key={index} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                {role.assayType !== 'ALL' ? `${role.assayType}-` : ''}{role.role}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          user.status === 'Active' ? 'bg-green-100 text-green-800' : 
+                          user.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
                         }`}>
-                          {user.isActive ? 'Active' : 'Inactive'}
+                          {user.status}
                         </span>
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex space-x-2">
-                          <button
-                            onClick={() => editUser(user)}
-                            className="text-blue-600 hover:text-blue-800 p-1"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          {!users.find(u => u.id === user.id) && (
-                            <button
-                              onClick={() => deleteUser(user, 'approved')}
-                              className="text-red-600 hover:text-red-800 p-1"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                          {user.status === 'Pending' ? (
+                            <>
+                              <button
+                                onClick={() => approveUser(user)}
+                                className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => deleteUser(user, 'pending')}
+                                className="text-red-600 hover:text-red-800 p-1"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => editUser(user)}
+                                className="text-blue-600 hover:text-blue-800 p-1"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              {user.source !== 'system' && (
+                                <button
+                                  onClick={() => deleteUser(user, 'approved')}
+                                  className="text-red-600 hover:text-red-800 p-1"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
