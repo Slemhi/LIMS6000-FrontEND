@@ -79,15 +79,45 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     localStorage.setItem('nctl_pending_users', JSON.stringify(users));
   };
 
+  // Get approved users from localStorage
+  const getApprovedUsers = () => {
+    try {
+      const stored = localStorage.getItem('nctl_approved_users');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  // Save registration data separately for password retrieval
+  const saveRegistrationData = (registrationData: any) => {
+    try {
+      const registrations = JSON.parse(localStorage.getItem('nctl_pending_registrations') || '[]');
+      registrations.push(registrationData);
+      localStorage.setItem('nctl_pending_registrations', JSON.stringify(registrations));
+    } catch (error) {
+      console.error('Error saving registration data:', error);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     // Simulate API call
     setTimeout(() => {
-      const user = mockUsers.find(u => 
+      // Check mock users first
+      let user = mockUsers.find(u => 
         u.username === loginForm.username && u.password === loginForm.password
       );
+
+      // If not found in mock users, check approved users
+      if (!user) {
+        const approvedUsers = getApprovedUsers();
+        user = approvedUsers.find((u: any) => 
+          u.username === loginForm.username && u.password === loginForm.password
+        );
+      }
 
       if (user) {
         // Update last login
@@ -113,10 +143,26 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       return;
     }
 
-    // Check if username already exists
+    // Check if username already exists in mock users
     const existingUser = mockUsers.find(u => u.username === registerForm.username);
     if (existingUser) {
       alert('Username already exists');
+      return;
+    }
+
+    // Check if username already exists in approved users
+    const approvedUsers = getApprovedUsers();
+    const existingApprovedUser = approvedUsers.find((u: any) => u.username === registerForm.username);
+    if (existingApprovedUser) {
+      alert('Username already exists');
+      return;
+    }
+
+    // Check if username already exists in pending users
+    const pendingUsers = getPendingUsers();
+    const existingPendingUser = pendingUsers.find((u: any) => u.username === registerForm.username);
+    if (existingPendingUser) {
+      alert('Username already exists in pending requests');
       return;
     }
 
@@ -138,8 +184,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         status: 'Pending'
       };
 
+      // Save registration data with password for later retrieval
+      const registrationData = {
+        username: registerForm.username,
+        password: registerForm.password,
+        email: registerForm.email,
+        firstName: registerForm.firstName,
+        lastName: registerForm.lastName,
+        phone: registerForm.phone,
+        department: registerForm.department,
+        registrationDate: new Date().toISOString()
+      };
+
       pendingUsers.push(newPendingUser);
       setPendingUsers(pendingUsers);
+      saveRegistrationData(registrationData);
 
       alert('Account request submitted successfully! Your account is pending administrator approval. You will be notified once approved.');
       setActiveTab('login');
@@ -164,8 +223,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     // Simulate API call
     setTimeout(() => {
       const user = mockUsers.find(u => u.email === resetForm.email);
+      const approvedUsers = getApprovedUsers();
+      const approvedUser = approvedUsers.find((u: any) => u.email === resetForm.email);
       
-      if (user) {
+      if (user || approvedUser) {
         alert(`Password reset instructions have been sent to ${resetForm.email}`);
         setActiveTab('login');
         setResetForm({ email: '' });

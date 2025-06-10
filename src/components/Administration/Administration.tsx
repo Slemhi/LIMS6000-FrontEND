@@ -13,6 +13,7 @@ interface PendingUser {
   department: string;
   requestDate: string;
   status: 'Pending' | 'Approved' | 'Rejected';
+  password?: string; // Store password for approved users
 }
 
 const Administration: React.FC = () => {
@@ -67,9 +68,32 @@ const Administration: React.FC = () => {
     setPendingUsers(updatedUsers);
   };
 
+  const getApprovedUsers = () => {
+    try {
+      const stored = localStorage.getItem('nctl_approved_users');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveApprovedUser = (user: any) => {
+    try {
+      const approvedUsers = getApprovedUsers();
+      approvedUsers.push(user);
+      localStorage.setItem('nctl_approved_users', JSON.stringify(approvedUsers));
+    } catch (error) {
+      console.error('Error saving approved user:', error);
+    }
+  };
+
   const handleApproveUser = (pendingUserId: string) => {
     const pendingUser = pendingUsers.find(u => u.id === pendingUserId);
     if (!pendingUser) return;
+
+    // Get the original registration data to retrieve the password
+    const originalRegistration = JSON.parse(localStorage.getItem('nctl_pending_registrations') || '[]')
+      .find((reg: any) => reg.username === pendingUser.username);
 
     // Create new user from pending user
     const newUser: User = {
@@ -84,8 +108,19 @@ const Administration: React.FC = () => {
       isActive: true
     };
 
+    // Create approved user with login credentials
+    const approvedUserWithCredentials = {
+      ...newUser,
+      password: originalRegistration?.password || 'defaultPassword123', // Use original password or default
+      lastLogin: new Date().toISOString(),
+      createdDate: new Date().toISOString().split('T')[0]
+    };
+
     // Add to users list
     setUsers(prev => [...prev, newUser]);
+
+    // Save to approved users for login system
+    saveApprovedUser(approvedUserWithCredentials);
 
     // Update pending user status
     const updatedPendingUsers = pendingUsers.map(u => 
@@ -96,7 +131,7 @@ const Administration: React.FC = () => {
     
     updatePendingUsersInStorage(updatedPendingUsers);
 
-    alert(`User ${pendingUser.firstName} ${pendingUser.lastName} has been approved and added to the system.`);
+    alert(`User ${pendingUser.firstName} ${pendingUser.lastName} has been approved and added to the system. They can now log in with their credentials.`);
   };
 
   const handleRejectUser = (pendingUserId: string) => {
@@ -221,7 +256,7 @@ const Administration: React.FC = () => {
                     <div className="mt-4 pt-4 border-t border-slate-200">
                       <p className="text-sm text-slate-600">
                         {pendingUser.status === 'Approved' 
-                          ? 'This user has been approved and added to the system.'
+                          ? 'This user has been approved and added to the system. They can now log in with their credentials.'
                           : 'This user request has been rejected.'
                         }
                       </p>
