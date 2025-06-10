@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Users, FlaskRound as Flask, FileText, Plus, Edit, Trash2, Clock, CheckCircle, X, AlertTriangle, Shield, Save, UserPlus } from 'lucide-react';
+import { Settings, Users, FlaskRound as Flask, FileText, Plus, Edit, Trash2, Clock, CheckCircle, X, AlertTriangle, Shield, Save, UserPlus, Lock, Unlock } from 'lucide-react';
 import { mockAssays, mockUsers, mockRoleDefinitions, mockPermissions } from '../../data/mockData';
 import { Assay, User, RoleDefinition, Permission } from '../../types';
 
@@ -13,7 +13,7 @@ interface PendingUser {
   department: string;
   requestDate: string;
   status: 'Pending' | 'Approved' | 'Rejected';
-  password?: string; // Store password for approved users
+  password?: string;
 }
 
 const Administration: React.FC = () => {
@@ -28,11 +28,19 @@ const Administration: React.FC = () => {
   const [showEditUserModal, setShowEditUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showCreateRoleModal, setShowCreateRoleModal] = useState(false);
+  const [showEditRoleModal, setShowEditRoleModal] = useState(false);
+  const [editingRole, setEditingRole] = useState<RoleDefinition | null>(null);
   const [showNewAssayModal, setShowNewAssayModal] = useState(false);
   const [newAssayForm, setNewAssayForm] = useState({
     code: '',
     name: '',
     description: ''
+  });
+  const [newRoleForm, setNewRoleForm] = useState({
+    name: '',
+    description: '',
+    assayType: '',
+    selectedPermissions: [] as string[]
   });
 
   // Debug function to show all localStorage data
@@ -72,7 +80,7 @@ const Administration: React.FC = () => {
           console.log(`Converting approved user ${index}:`, approvedUser);
           
           return {
-            id: approvedUser.id || `AU${String(index + 1).padStart(3, '0')}`, // Ensure ID exists
+            id: approvedUser.id || `AU${String(index + 1).padStart(3, '0')}`,
             username: approvedUser.username,
             email: approvedUser.email,
             firstName: approvedUser.firstName,
@@ -229,7 +237,7 @@ const Administration: React.FC = () => {
     // Create approved user with login credentials
     const approvedUserWithCredentials = {
       ...newUser,
-      password: originalRegistration?.password || 'defaultPassword123', // Use original password or default
+      password: originalRegistration?.password || 'defaultPassword123',
       lastLogin: new Date().toISOString(),
       createdDate: new Date().toISOString().split('T')[0]
     };
@@ -479,6 +487,113 @@ const Administration: React.FC = () => {
     // Reset form
     setNewAssayForm({ code: '', name: '', description: '' });
     setShowNewAssayModal(false);
+  };
+
+  const handleCreateRole = () => {
+    if (!newRoleForm.name || !newRoleForm.description) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    const newRole: RoleDefinition = {
+      id: `custom-${Date.now()}`,
+      name: newRoleForm.name,
+      description: newRoleForm.description,
+      permissions: mockPermissions.filter(p => newRoleForm.selectedPermissions.includes(p.id)),
+      isSystemRole: false,
+      assayType: newRoleForm.assayType || undefined,
+      createdDate: new Date().toISOString().split('T')[0]
+    };
+
+    setRoleDefinitions(prev => [...prev, newRole]);
+    
+    alert(`Successfully created role: ${newRole.name}`);
+    
+    // Reset form
+    setNewRoleForm({
+      name: '',
+      description: '',
+      assayType: '',
+      selectedPermissions: []
+    });
+    setShowCreateRoleModal(false);
+  };
+
+  const handleEditRole = (role: RoleDefinition) => {
+    if (role.isSystemRole) {
+      alert('System roles cannot be edited. They are automatically managed.');
+      return;
+    }
+    
+    setEditingRole({ ...role });
+    setNewRoleForm({
+      name: role.name,
+      description: role.description,
+      assayType: role.assayType || '',
+      selectedPermissions: role.permissions.map(p => p.id)
+    });
+    setShowEditRoleModal(true);
+  };
+
+  const handleSaveRole = () => {
+    if (!editingRole || !newRoleForm.name || !newRoleForm.description) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    const updatedRole: RoleDefinition = {
+      ...editingRole,
+      name: newRoleForm.name,
+      description: newRoleForm.description,
+      permissions: mockPermissions.filter(p => newRoleForm.selectedPermissions.includes(p.id)),
+      assayType: newRoleForm.assayType || undefined
+    };
+
+    setRoleDefinitions(prev => prev.map(r => r.id === editingRole.id ? updatedRole : r));
+    
+    alert(`Successfully updated role: ${updatedRole.name}`);
+    
+    // Reset form
+    setNewRoleForm({
+      name: '',
+      description: '',
+      assayType: '',
+      selectedPermissions: []
+    });
+    setShowEditRoleModal(false);
+    setEditingRole(null);
+  };
+
+  const handleDeleteRole = (role: RoleDefinition) => {
+    if (role.isSystemRole) {
+      alert('System roles cannot be deleted. They are automatically managed.');
+      return;
+    }
+
+    if (confirm(`Are you sure you want to delete the role "${role.name}"? This action cannot be undone.`)) {
+      setRoleDefinitions(prev => prev.filter(r => r.id !== role.id));
+      alert(`Role "${role.name}" has been deleted.`);
+    }
+  };
+
+  const togglePermission = (permissionId: string) => {
+    setNewRoleForm(prev => ({
+      ...prev,
+      selectedPermissions: prev.selectedPermissions.includes(permissionId)
+        ? prev.selectedPermissions.filter(id => id !== permissionId)
+        : [...prev.selectedPermissions, permissionId]
+    }));
+  };
+
+  const getPermissionsByCategory = () => {
+    const categories: { [key: string]: Permission[] } = {};
+    mockPermissions.forEach(permission => {
+      if (!categories[permission.category]) {
+        categories[permission.category] = [];
+      }
+      categories[permission.category].push(permission);
+    });
+    return categories;
   };
 
   const pendingCount = pendingUsers.filter(u => u.status === 'Pending').length;
@@ -799,26 +914,48 @@ const Administration: React.FC = () => {
             </button>
           </div>
 
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-blue-900 mb-2">Assay-Specific Permissions</h4>
+            <p className="text-sm text-blue-700">
+              Roles are designed to be assay-specific. For example, a user with "POT - Sample Preparation" role can only create and edit batches for Potency (POT) testing, not for other assays like Pesticides (PES) or Heavy Metals (HMT).
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {roleDefinitions.map((role) => (
               <div key={role.id} className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h4 className="text-lg font-semibold text-slate-900">{role.name}</h4>
+                    <div className="flex items-center space-x-2 mb-1">
+                      <h4 className="text-lg font-semibold text-slate-900">{role.name}</h4>
+                      {role.isSystemRole ? (
+                        <Lock className="h-4 w-4 text-slate-400" title="System Role - Auto-managed" />
+                      ) : (
+                        <Unlock className="h-4 w-4 text-green-500" title="Custom Role - Editable" />
+                      )}
+                    </div>
                     <p className="text-sm text-slate-600">{role.description}</p>
                     {role.assayType && (
                       <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-1">
-                        {role.assayType}
+                        {role.assayType} Specific
                       </span>
                     )}
                   </div>
                   <div className="flex space-x-2">
                     {!role.isSystemRole && (
                       <>
-                        <button className="p-2 text-slate-600 hover:text-blue-600">
+                        <button 
+                          onClick={() => handleEditRole(role)}
+                          className="p-2 text-slate-600 hover:text-blue-600"
+                          title="Edit role"
+                        >
                           <Edit className="h-4 w-4" />
                         </button>
-                        <button className="p-2 text-slate-600 hover:text-red-600">
+                        <button 
+                          onClick={() => handleDeleteRole(role)}
+                          className="p-2 text-slate-600 hover:text-red-600"
+                          title="Delete role"
+                        >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </>
@@ -971,10 +1108,10 @@ const Administration: React.FC = () => {
 
             <div className="p-6 space-y-6">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-blue-900 mb-2">Role Assignment</h4>
+                <h4 className="text-sm font-medium text-blue-900 mb-2">Assay-Specific Role Assignment</h4>
                 <p className="text-sm text-blue-700">
-                  Assign specific roles to control what this user can access and perform in the system.
-                  Each role is tied to an assay type and defines the user's permissions for that area.
+                  Each role is tied to a specific assay type. Users can only perform actions for their assigned assays.
+                  For example, POT-Prep role allows batch creation only for Potency testing.
                 </p>
               </div>
 
@@ -1000,7 +1137,7 @@ const Administration: React.FC = () => {
                           onChange={(e) => updateUserRole(index, 'assayType', e.target.value)}
                           className="w-full border border-slate-300 rounded-lg px-3 py-2"
                         >
-                          <option value="ALL">All Assays</option>
+                          <option value="ALL">All Assays (Admin Only)</option>
                           {assays.map(assay => (
                             <option key={assay.code} value={assay.code}>{assay.code} - {assay.name}</option>
                           ))}
@@ -1038,8 +1175,8 @@ const Administration: React.FC = () => {
                     <div className="mt-3 p-3 bg-white rounded border">
                       <p className="text-sm text-slate-600">
                         <strong>Permissions:</strong> {role.assayType === 'ALL' ? 'Full system access' : 
-                        role.role === 'Prep' ? `Sample preparation for ${role.assayType} analysis` :
-                        role.role === 'Analysis' ? `Instrument operation and data analysis for ${role.assayType}` :
+                        role.role === 'Prep' ? `Sample preparation for ${role.assayType} analysis only` :
+                        role.role === 'Analysis' ? `Instrument operation and data analysis for ${role.assayType} only` :
                         role.role === 'QC Manager' ? 'Quality control oversight and approval' :
                         role.role === 'Receiving' ? 'Sample intake and manifest processing' :
                         'Full administrative access'}
@@ -1075,6 +1212,153 @@ const Administration: React.FC = () => {
         </div>
       )}
 
+      {/* Create Role Modal */}
+      {(showCreateRoleModal || showEditRoleModal) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-slate-900">
+                  {showEditRoleModal ? 'Edit Role' : 'Create New Role'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowCreateRoleModal(false);
+                    setShowEditRoleModal(false);
+                    setEditingRole(null);
+                    setNewRoleForm({
+                      name: '',
+                      description: '',
+                      assayType: '',
+                      selectedPermissions: []
+                    });
+                  }}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-green-900 mb-2">Assay-Specific Permissions</h4>
+                <p className="text-sm text-green-700">
+                  Create roles with specific permissions for individual assays. Users with these roles will only be able to perform actions for their assigned assay type.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Role Name *</label>
+                  <input
+                    type="text"
+                    value={newRoleForm.name}
+                    onChange={(e) => setNewRoleForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                    placeholder="e.g., POT - Custom Prep Role"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Assay Type (Optional)</label>
+                  <select
+                    value={newRoleForm.assayType}
+                    onChange={(e) => setNewRoleForm(prev => ({ ...prev, assayType: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                  >
+                    <option value="">General Role (All Assays)</option>
+                    {assays.map(assay => (
+                      <option key={assay.code} value={assay.code}>{assay.code} - {assay.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Description *</label>
+                <textarea
+                  value={newRoleForm.description}
+                  onChange={(e) => setNewRoleForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                  rows={3}
+                  placeholder="Describe what this role can do..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-3">Permissions</label>
+                <div className="space-y-4">
+                  {Object.entries(getPermissionsByCategory()).map(([category, permissions]) => (
+                    <div key={category} className="border border-slate-200 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-slate-900 mb-3">{category}</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {permissions.map(permission => (
+                          <label key={permission.id} className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={newRoleForm.selectedPermissions.includes(permission.id)}
+                              onChange={() => togglePermission(permission.id)}
+                              className="rounded border-slate-300"
+                            />
+                            <div>
+                              <span className="text-sm font-medium text-slate-700">{permission.name}</span>
+                              <p className="text-xs text-slate-500">{permission.description}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {newRoleForm.selectedPermissions.length > 0 && (
+                <div className="bg-slate-50 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-slate-700 mb-2">Selected Permissions ({newRoleForm.selectedPermissions.length})</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {newRoleForm.selectedPermissions.map(permId => {
+                      const permission = mockPermissions.find(p => p.id === permId);
+                      return permission ? (
+                        <span key={permId} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                          {permission.name}
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-slate-200 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowCreateRoleModal(false);
+                  setShowEditRoleModal(false);
+                  setEditingRole(null);
+                  setNewRoleForm({
+                    name: '',
+                    description: '',
+                    assayType: '',
+                    selectedPermissions: []
+                  });
+                }}
+                className="px-4 py-2 text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={showEditRoleModal ? handleSaveRole : handleCreateRole}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+              >
+                <Save className="h-4 w-4" />
+                <span>{showEditRoleModal ? 'Save Changes' : 'Create Role'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create New Assay Modal */}
       {showNewAssayModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -1086,7 +1370,6 @@ const Administration: React.FC = () => {
                   onClick={() => setShowNewAssayModal(false)}
                   className="text-slate-400 hover:text-slate-600"
                 >
-                
                   <X className="h-6 w-6" />
                 </button>
               </div>
@@ -1147,13 +1430,13 @@ const Administration: React.FC = () => {
                       <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
                         {newAssayForm.code}-Prep
                       </span>
-                      <span className="text-sm text-slate-600">Sample preparation role</span>
+                      <span className="text-sm text-slate-600">Sample preparation role (assay-specific)</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
                         {newAssayForm.code}-Analysis
                       </span>
-                      <span className="text-sm text-slate-600">Analysis and instrument operation role</span>
+                      <span className="text-sm text-slate-600">Analysis and instrument operation role (assay-specific)</span>
                     </div>
                   </div>
                 </div>
