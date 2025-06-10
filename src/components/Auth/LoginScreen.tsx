@@ -83,8 +83,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const getApprovedUsers = () => {
     try {
       const stored = localStorage.getItem('nctl_approved_users');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
+      const approvedUsers = stored ? JSON.parse(stored) : [];
+      console.log('Retrieved approved users:', approvedUsers); // Debug log
+      return approvedUsers;
+    } catch (error) {
+      console.error('Error retrieving approved users:', error);
       return [];
     }
   };
@@ -95,6 +98,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       const registrations = JSON.parse(localStorage.getItem('nctl_pending_registrations') || '[]');
       registrations.push(registrationData);
       localStorage.setItem('nctl_pending_registrations', JSON.stringify(registrations));
+      console.log('Saved registration data:', registrationData); // Debug log
     } catch (error) {
       console.error('Error saving registration data:', error);
     }
@@ -104,6 +108,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     e.preventDefault();
     setIsLoading(true);
 
+    // Debug: Log what we're looking for
+    console.log('Attempting login with:', { username: loginForm.username, password: loginForm.password });
+
     // Simulate API call
     setTimeout(() => {
       // Check mock users first
@@ -111,19 +118,29 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         u.username === loginForm.username && u.password === loginForm.password
       );
 
+      console.log('Found in mock users:', user ? 'Yes' : 'No');
+
       // If not found in mock users, check approved users
       if (!user) {
         const approvedUsers = getApprovedUsers();
-        user = approvedUsers.find((u: any) => 
-          u.username === loginForm.username && u.password === loginForm.password
-        );
+        console.log('Checking approved users:', approvedUsers);
+        
+        user = approvedUsers.find((u: any) => {
+          const match = u.username === loginForm.username && u.password === loginForm.password;
+          console.log(`Checking user ${u.username}: ${match ? 'MATCH' : 'no match'}`);
+          return match;
+        });
+        
+        console.log('Found in approved users:', user ? 'Yes' : 'No');
       }
 
       if (user) {
         // Update last login
         user.lastLogin = new Date().toISOString();
+        console.log('Login successful for user:', user.username);
         onLogin(user);
       } else {
+        console.log('Login failed - user not found');
         alert('Invalid username or password');
       }
       setIsLoading(false);
@@ -200,6 +217,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       setPendingUsers(pendingUsers);
       saveRegistrationData(registrationData);
 
+      console.log('Registration submitted:', newPendingUser);
+      console.log('Registration data saved:', registrationData);
+
       alert('Account request submitted successfully! Your account is pending administrator approval. You will be notified once approved.');
       setActiveTab('login');
       setRegisterForm({
@@ -250,6 +270,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     </button>
   );
 
+  // Debug function to show current localStorage state
+  const debugLocalStorage = () => {
+    console.log('=== DEBUG: Current localStorage state ===');
+    console.log('Pending users:', localStorage.getItem('nctl_pending_users'));
+    console.log('Approved users:', localStorage.getItem('nctl_approved_users'));
+    console.log('Registration data:', localStorage.getItem('nctl_pending_registrations'));
+    console.log('=========================================');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
@@ -268,6 +297,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           <TabButton id="login" label="Sign In" />
           <TabButton id="register" label="Create Account" />
           <TabButton id="reset" label="Reset Password" />
+        </div>
+
+        {/* Debug Button (remove in production) */}
+        <div className="px-6">
+          <button
+            onClick={debugLocalStorage}
+            className="w-full text-xs text-slate-500 hover:text-slate-700 py-1"
+          >
+            Debug: Show localStorage State
+          </button>
         </div>
 
         {/* Forms */}
