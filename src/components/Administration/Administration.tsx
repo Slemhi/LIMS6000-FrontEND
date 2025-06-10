@@ -1,14 +1,39 @@
 import React, { useState } from 'react';
-import { Settings, Users, FlaskRound as Flask, FileText, Plus, Edit, Trash2 } from 'lucide-react';
+import { Settings, Users, FlaskRound as Flask, FileText, Plus, Edit, Trash2, Clock, CheckCircle, X } from 'lucide-react';
 import { mockAssays, mockUsers } from '../../data/mockData';
 import { Assay, User } from '../../types';
 
+interface PendingUser {
+  id: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  department: string;
+  requestDate: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+}
+
 const Administration: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('assays');
+  const [activeTab, setActiveTab] = useState('pending');
   const [assays, setAssays] = useState<Assay[]>(mockAssays);
   const [users, setUsers] = useState<User[]>(mockUsers);
+  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([
+    {
+      id: 'PU001',
+      username: 'newuser1',
+      email: 'newuser@example.com',
+      firstName: 'John',
+      lastName: 'Doe',
+      phone: '(555) 123-4567',
+      department: 'Sample Preparation',
+      requestDate: new Date().toISOString().split('T')[0],
+      status: 'Pending'
+    }
+  ]);
 
-  const TabButton = ({ id, label, icon: Icon }: { id: string; label: string; icon: any }) => (
+  const TabButton = ({ id, label, icon: Icon, count }: { id: string; label: string; icon: any; count?: number }) => (
     <button
       onClick={() => setActiveTab(id)}
       className={`flex items-center space-x-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
@@ -19,8 +44,59 @@ const Administration: React.FC = () => {
     >
       <Icon className="h-4 w-4" />
       <span>{label}</span>
+      {count !== undefined && count > 0 && (
+        <span className="bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+          {count}
+        </span>
+      )}
     </button>
   );
+
+  const handleApproveUser = (pendingUserId: string) => {
+    const pendingUser = pendingUsers.find(u => u.id === pendingUserId);
+    if (!pendingUser) return;
+
+    // Create new user from pending user
+    const newUser: User = {
+      id: `U${String(users.length + 1).padStart(3, '0')}`,
+      username: pendingUser.username,
+      email: pendingUser.email,
+      firstName: pendingUser.firstName,
+      lastName: pendingUser.lastName,
+      roles: [
+        { assayType: 'POT', role: 'Prep' } // Default role
+      ],
+      isActive: true
+    };
+
+    // Add to users list
+    setUsers(prev => [...prev, newUser]);
+
+    // Update pending user status
+    setPendingUsers(prev => prev.map(u => 
+      u.id === pendingUserId 
+        ? { ...u, status: 'Approved' as const }
+        : u
+    ));
+
+    alert(`User ${pendingUser.firstName} ${pendingUser.lastName} has been approved and added to the system.`);
+  };
+
+  const handleRejectUser = (pendingUserId: string) => {
+    const pendingUser = pendingUsers.find(u => u.id === pendingUserId);
+    if (!pendingUser) return;
+
+    // Update pending user status
+    setPendingUsers(prev => prev.map(u => 
+      u.id === pendingUserId 
+        ? { ...u, status: 'Rejected' as const }
+        : u
+    ));
+
+    alert(`User ${pendingUser.firstName} ${pendingUser.lastName} has been rejected.`);
+  };
+
+  const pendingCount = pendingUsers.filter(u => u.status === 'Pending').length;
 
   return (
     <div className="p-6 space-y-6">
@@ -32,10 +108,112 @@ const Administration: React.FC = () => {
 
       {/* Tabs */}
       <div className="flex space-x-2 border-b border-slate-200 pb-4">
+        <TabButton id="pending" label="Pending Accounts" icon={Clock} count={pendingCount} />
         <TabButton id="assays" label="Assay Management" icon={Flask} />
         <TabButton id="users" label="User Management" icon={Users} />
         <TabButton id="settings" label="System Settings" icon={Settings} />
       </div>
+
+      {/* Pending Account Requests */}
+      {activeTab === 'pending' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-900">Pending Account Requests</h3>
+            {pendingCount > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+                <span className="text-sm font-medium text-yellow-800">
+                  {pendingCount} request{pendingCount !== 1 ? 's' : ''} awaiting approval
+                </span>
+              </div>
+            )}
+          </div>
+
+          {pendingUsers.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-8 text-center">
+              <Clock className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+              <h4 className="text-lg font-medium text-slate-900 mb-2">No Pending Requests</h4>
+              <p className="text-slate-600">All account requests have been processed.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {pendingUsers.map((pendingUser) => (
+                <div key={pendingUser.id} className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-4 mb-4">
+                        <div>
+                          <h4 className="text-lg font-semibold text-slate-900">
+                            {pendingUser.firstName} {pendingUser.lastName}
+                          </h4>
+                          <p className="text-sm text-slate-600">@{pendingUser.username}</p>
+                        </div>
+                        <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                          pendingUser.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                          pendingUser.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {pendingUser.status}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium text-slate-700">Email:</span>
+                          <span className="text-slate-900 ml-2">{pendingUser.email}</span>
+                        </div>
+                        {pendingUser.phone && (
+                          <div>
+                            <span className="font-medium text-slate-700">Phone:</span>
+                            <span className="text-slate-900 ml-2">{pendingUser.phone}</span>
+                          </div>
+                        )}
+                        <div>
+                          <span className="font-medium text-slate-700">Department:</span>
+                          <span className="text-slate-900 ml-2">{pendingUser.department}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-slate-700">Request Date:</span>
+                          <span className="text-slate-900 ml-2">{pendingUser.requestDate}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {pendingUser.status === 'Pending' && (
+                      <div className="flex space-x-3 ml-6">
+                        <button
+                          onClick={() => handleApproveUser(pendingUser.id)}
+                          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          <span>Approve</span>
+                        </button>
+                        <button
+                          onClick={() => handleRejectUser(pendingUser.id)}
+                          className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
+                        >
+                          <X className="h-4 w-4" />
+                          <span>Reject</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {pendingUser.status !== 'Pending' && (
+                    <div className="mt-4 pt-4 border-t border-slate-200">
+                      <p className="text-sm text-slate-600">
+                        {pendingUser.status === 'Approved' 
+                          ? 'This user has been approved and added to the system.'
+                          : 'This user request has been rejected.'
+                        }
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Assay Management */}
       {activeTab === 'assays' && (

@@ -65,6 +65,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
   ];
 
+  // Get pending users from localStorage or initialize empty array
+  const getPendingUsers = () => {
+    try {
+      const stored = localStorage.getItem('nctl_pending_users');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const setPendingUsers = (users: any[]) => {
+    localStorage.setItem('nctl_pending_users', JSON.stringify(users));
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -99,27 +113,35 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       return;
     }
 
+    // Check if username already exists
+    const existingUser = mockUsers.find(u => u.username === registerForm.username);
+    if (existingUser) {
+      alert('Username already exists');
+      return;
+    }
+
     setIsLoading(true);
 
     // Simulate API call
     setTimeout(() => {
-      const newUser = {
-        id: `U${String(mockUsers.length + 1).padStart(3, '0')}`,
+      const pendingUsers = getPendingUsers();
+      
+      const newPendingUser = {
+        id: `PU${String(pendingUsers.length + 1).padStart(3, '0')}`,
         username: registerForm.username,
-        password: registerForm.password,
         email: registerForm.email,
         firstName: registerForm.firstName,
         lastName: registerForm.lastName,
-        roles: [
-          { assayType: 'POT', role: 'Prep' }
-        ],
-        isActive: true,
-        lastLogin: new Date().toISOString(),
-        createdDate: new Date().toISOString().split('T')[0]
+        phone: registerForm.phone,
+        department: registerForm.department,
+        requestDate: new Date().toISOString().split('T')[0],
+        status: 'Pending'
       };
 
-      mockUsers.push(newUser);
-      alert('Account created successfully! You can now log in.');
+      pendingUsers.push(newPendingUser);
+      setPendingUsers(pendingUsers);
+
+      alert('Account request submitted successfully! Your account is pending administrator approval. You will be notified once approved.');
       setActiveTab('login');
       setRegisterForm({
         firstName: '',
