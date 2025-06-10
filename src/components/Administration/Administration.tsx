@@ -23,6 +23,7 @@ const Administration: React.FC = () => {
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [pendingUserToDelete, setPendingUserToDelete] = useState<PendingUser | null>(null);
 
   // Debug function to show all localStorage data
   const debugAllData = () => {
@@ -281,47 +282,74 @@ const Administration: React.FC = () => {
     }
 
     setUserToDelete(user);
-    setShowDeleteConfirm(user.id);
+    setShowDeleteConfirm(`user-${user.id}`);
+  };
+
+  const handleDeletePendingUser = (pendingUser: PendingUser) => {
+    setPendingUserToDelete(pendingUser);
+    setShowDeleteConfirm(`pending-${pendingUser.id}`);
   };
 
   const confirmDeleteUser = () => {
-    if (!userToDelete) return;
+    if (userToDelete) {
+      console.log('Deleting user:', userToDelete);
 
-    console.log('Deleting user:', userToDelete);
+      // Remove from users list
+      setUsers(prev => {
+        const filtered = prev.filter(u => u.id !== userToDelete.id);
+        console.log('Users after deletion:', filtered);
+        return filtered;
+      });
 
-    // Remove from users list
-    setUsers(prev => {
-      const filtered = prev.filter(u => u.id !== userToDelete.id);
-      console.log('Users after deletion:', filtered);
-      return filtered;
-    });
+      // Remove from approved users in localStorage
+      removeApprovedUser(userToDelete.username);
 
-    // Remove from approved users in localStorage
-    removeApprovedUser(userToDelete.username);
+      // Also remove from pending users if they exist there
+      const updatedPendingUsers = pendingUsers.filter(u => u.username !== userToDelete.username);
+      updatePendingUsersInStorage(updatedPendingUsers);
 
-    // Also remove from pending users if they exist there
-    const updatedPendingUsers = pendingUsers.filter(u => u.username !== userToDelete.username);
-    updatePendingUsersInStorage(updatedPendingUsers);
+      // Remove registration data
+      try {
+        const registrations = JSON.parse(localStorage.getItem('nctl_pending_registrations') || '[]');
+        const filteredRegistrations = registrations.filter((reg: any) => reg.username !== userToDelete.username);
+        localStorage.setItem('nctl_pending_registrations', JSON.stringify(filteredRegistrations));
+        console.log('Removed registration data for:', userToDelete.username);
+      } catch (error) {
+        console.error('Error removing registration data:', error);
+      }
 
-    // Remove registration data
-    try {
-      const registrations = JSON.parse(localStorage.getItem('nctl_pending_registrations') || '[]');
-      const filteredRegistrations = registrations.filter((reg: any) => reg.username !== userToDelete.username);
-      localStorage.setItem('nctl_pending_registrations', JSON.stringify(filteredRegistrations));
-      console.log('Removed registration data for:', userToDelete.username);
-    } catch (error) {
-      console.error('Error removing registration data:', error);
+      alert(`User ${userToDelete.firstName} ${userToDelete.lastName} has been permanently deleted from the system.`);
     }
 
-    alert(`User ${userToDelete.firstName} ${userToDelete.lastName} has been permanently deleted from the system.`);
+    if (pendingUserToDelete) {
+      console.log('Deleting pending user:', pendingUserToDelete);
+
+      // Remove from pending users
+      const updatedPendingUsers = pendingUsers.filter(u => u.id !== pendingUserToDelete.id);
+      updatePendingUsersInStorage(updatedPendingUsers);
+
+      // Remove registration data
+      try {
+        const registrations = JSON.parse(localStorage.getItem('nctl_pending_registrations') || '[]');
+        const filteredRegistrations = registrations.filter((reg: any) => reg.username !== pendingUserToDelete.username);
+        localStorage.setItem('nctl_pending_registrations', JSON.stringify(filteredRegistrations));
+        console.log('Removed registration data for:', pendingUserToDelete.username);
+      } catch (error) {
+        console.error('Error removing registration data:', error);
+      }
+
+      alert(`Pending request for ${pendingUserToDelete.firstName} ${pendingUserToDelete.lastName} has been permanently deleted.`);
+    }
     
     setShowDeleteConfirm(null);
     setUserToDelete(null);
+    setPendingUserToDelete(null);
   };
 
   const cancelDeleteUser = () => {
     setShowDeleteConfirm(null);
     setUserToDelete(null);
+    setPendingUserToDelete(null);
   };
 
   const pendingCount = pendingUsers.filter(u => u.status === 'Pending').length;
@@ -414,24 +442,36 @@ const Administration: React.FC = () => {
                       </div>
                     </div>
 
-                    {pendingUser.status === 'Pending' && (
-                      <div className="flex space-x-3 ml-6">
-                        <button
-                          onClick={() => handleApproveUser(pendingUser.id)}
-                          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                          <span>Approve</span>
-                        </button>
-                        <button
-                          onClick={() => handleRejectUser(pendingUser.id)}
-                          className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
-                        >
-                          <X className="h-4 w-4" />
-                          <span>Reject</span>
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex space-x-3 ml-6">
+                      {pendingUser.status === 'Pending' && (
+                        <>
+                          <button
+                            onClick={() => handleApproveUser(pendingUser.id)}
+                            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            <span>Approve</span>
+                          </button>
+                          <button
+                            onClick={() => handleRejectUser(pendingUser.id)}
+                            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
+                          >
+                            <X className="h-4 w-4" />
+                            <span>Reject</span>
+                          </button>
+                        </>
+                      )}
+                      
+                      {/* Delete button for all pending users */}
+                      <button
+                        onClick={() => handleDeletePendingUser(pendingUser)}
+                        className="bg-slate-600 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition-colors flex items-center space-x-2"
+                        title="Permanently delete this request"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
                   </div>
 
                   {pendingUser.status !== 'Pending' && (
@@ -693,7 +733,7 @@ const Administration: React.FC = () => {
       )}
 
       {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && userToDelete && (
+      {showDeleteConfirm && (userToDelete || pendingUserToDelete) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-md w-full">
             <div className="p-6">
@@ -701,12 +741,19 @@ const Administration: React.FC = () => {
                 <div className="bg-red-100 rounded-full p-2">
                   <AlertTriangle className="h-6 w-6 text-red-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900">Delete User Account</h3>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  {pendingUserToDelete ? 'Delete Pending Request' : 'Delete User Account'}
+                </h3>
               </div>
               
               <p className="text-slate-600 mb-6">
-                Are you sure you want to permanently delete the account for{' '}
-                <strong>{userToDelete.firstName} {userToDelete.lastName}</strong> (@{userToDelete.username})?
+                Are you sure you want to permanently delete {pendingUserToDelete ? 'the pending request for' : 'the account for'}{' '}
+                <strong>
+                  {userToDelete ? `${userToDelete.firstName} ${userToDelete.lastName}` : 
+                   pendingUserToDelete ? `${pendingUserToDelete.firstName} ${pendingUserToDelete.lastName}` : ''}
+                </strong> 
+                {userToDelete ? ` (@${userToDelete.username})` : 
+                 pendingUserToDelete ? ` (@${pendingUserToDelete.username})` : ''}?
               </p>
               
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
@@ -718,10 +765,20 @@ const Administration: React.FC = () => {
                       This will permanently delete:
                     </p>
                     <ul className="text-sm text-red-700 mt-2 list-disc list-inside">
-                      <li>User account and profile</li>
-                      <li>Login credentials</li>
-                      <li>All associated permissions</li>
-                      <li>Registration history</li>
+                      {pendingUserToDelete ? (
+                        <>
+                          <li>Pending account request</li>
+                          <li>Registration information</li>
+                          <li>Contact details</li>
+                        </>
+                      ) : (
+                        <>
+                          <li>User account and profile</li>
+                          <li>Login credentials</li>
+                          <li>All associated permissions</li>
+                          <li>Registration history</li>
+                        </>
+                      )}
                     </ul>
                   </div>
                 </div>
@@ -740,7 +797,7 @@ const Administration: React.FC = () => {
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
               >
                 <Trash2 className="h-4 w-4" />
-                <span>Delete Account</span>
+                <span>Delete {pendingUserToDelete ? 'Request' : 'Account'}</span>
               </button>
             </div>
           </div>
