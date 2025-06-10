@@ -24,7 +24,7 @@ const Administration: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
-  // Load pending users from localStorage on component mount
+  // Load pending users and approved users from localStorage on component mount
   useEffect(() => {
     const loadPendingUsers = () => {
       try {
@@ -38,10 +38,45 @@ const Administration: React.FC = () => {
       }
     };
 
-    loadPendingUsers();
+    const loadApprovedUsers = () => {
+      try {
+        const approvedUsers = getApprovedUsers();
+        console.log('Loading approved users:', approvedUsers);
+        
+        // Convert approved users to User format and merge with mock users
+        const convertedApprovedUsers: User[] = approvedUsers.map((approvedUser: any) => ({
+          id: approvedUser.id,
+          username: approvedUser.username,
+          email: approvedUser.email,
+          firstName: approvedUser.firstName,
+          lastName: approvedUser.lastName,
+          roles: approvedUser.roles || [{ assayType: 'POT', role: 'Prep' }],
+          isActive: approvedUser.isActive !== undefined ? approvedUser.isActive : true
+        }));
 
-    // Set up an interval to check for new pending users
-    const interval = setInterval(loadPendingUsers, 1000);
+        // Merge mock users with approved users, avoiding duplicates
+        const allUsers = [...mockUsers];
+        convertedApprovedUsers.forEach(approvedUser => {
+          if (!allUsers.find(user => user.username === approvedUser.username)) {
+            allUsers.push(approvedUser);
+          }
+        });
+
+        console.log('All users after merge:', allUsers);
+        setUsers(allUsers);
+      } catch (error) {
+        console.error('Error loading approved users:', error);
+      }
+    };
+
+    loadPendingUsers();
+    loadApprovedUsers();
+
+    // Set up an interval to check for new pending users and approved users
+    const interval = setInterval(() => {
+      loadPendingUsers();
+      loadApprovedUsers();
+    }, 2000);
 
     return () => clearInterval(interval);
   }, []);
@@ -84,6 +119,7 @@ const Administration: React.FC = () => {
       const approvedUsers = getApprovedUsers();
       approvedUsers.push(user);
       localStorage.setItem('nctl_approved_users', JSON.stringify(approvedUsers));
+      console.log('Saved approved user:', user);
     } catch (error) {
       console.error('Error saving approved user:', error);
     }
@@ -94,6 +130,7 @@ const Administration: React.FC = () => {
       const approvedUsers = getApprovedUsers();
       const filteredUsers = approvedUsers.filter((user: any) => user.username !== username);
       localStorage.setItem('nctl_approved_users', JSON.stringify(filteredUsers));
+      console.log('Removed approved user:', username);
     } catch (error) {
       console.error('Error removing approved user:', error);
     }
@@ -107,9 +144,13 @@ const Administration: React.FC = () => {
     const originalRegistration = JSON.parse(localStorage.getItem('nctl_pending_registrations') || '[]')
       .find((reg: any) => reg.username === pendingUser.username);
 
+    // Create new user ID that doesn't conflict with existing users
+    const existingIds = users.map(u => parseInt(u.id.replace('U', '')));
+    const newIdNumber = Math.max(...existingIds, 0) + 1;
+
     // Create new user from pending user
     const newUser: User = {
-      id: `U${String(users.length + 1).padStart(3, '0')}`,
+      id: `U${String(newIdNumber).padStart(3, '0')}`,
       username: pendingUser.username,
       email: pendingUser.email,
       firstName: pendingUser.firstName,
@@ -128,8 +169,15 @@ const Administration: React.FC = () => {
       createdDate: new Date().toISOString().split('T')[0]
     };
 
-    // Add to users list
-    setUsers(prev => [...prev, newUser]);
+    // Add to users list immediately
+    setUsers(prev => {
+      const updated = [...prev];
+      // Check if user already exists to avoid duplicates
+      if (!updated.find(u => u.username === newUser.username)) {
+        updated.push(newUser);
+      }
+      return updated;
+    });
 
     // Save to approved users for login system
     saveApprovedUser(approvedUserWithCredentials);
@@ -395,10 +443,15 @@ const Administration: React.FC = () => {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-900">User Management</h3>
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
-              <Plus className="h-4 w-4" />
-              <span>Add User</span>
-            </button>
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-slate-600">
+                Total Users: <span className="font-medium text-slate-900">{users.length}</span>
+              </div>
+              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+                <Plus className="h-4 w-4" />
+                <span>Add User</span>
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-lg shadow-sm border border-slate-200">
@@ -422,6 +475,7 @@ const Administration: React.FC = () => {
                           <div className="font-medium text-slate-900">
                             {user.firstName} {user.lastName}
                           </div>
+                          <div className="text-xs text-slate-500">ID: {user.id}</div>
                         </div>
                       </td>
                       <td className="py-3 px-4 font-mono text-sm">{user.username}</td>
