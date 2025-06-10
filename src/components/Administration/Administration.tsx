@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings, Users, FlaskRound as Flask, FileText, Plus, Edit, Trash2, Clock, CheckCircle, X } from 'lucide-react';
 import { mockAssays, mockUsers } from '../../data/mockData';
 import { Assay, User } from '../../types';
@@ -19,19 +19,29 @@ const Administration: React.FC = () => {
   const [activeTab, setActiveTab] = useState('pending');
   const [assays, setAssays] = useState<Assay[]>(mockAssays);
   const [users, setUsers] = useState<User[]>(mockUsers);
-  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([
-    {
-      id: 'PU001',
-      username: 'newuser1',
-      email: 'newuser@example.com',
-      firstName: 'John',
-      lastName: 'Doe',
-      phone: '(555) 123-4567',
-      department: 'Sample Preparation',
-      requestDate: new Date().toISOString().split('T')[0],
-      status: 'Pending'
-    }
-  ]);
+  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+
+  // Load pending users from localStorage on component mount
+  useEffect(() => {
+    const loadPendingUsers = () => {
+      try {
+        const stored = localStorage.getItem('nctl_pending_users');
+        if (stored) {
+          const parsedUsers = JSON.parse(stored);
+          setPendingUsers(parsedUsers);
+        }
+      } catch (error) {
+        console.error('Error loading pending users:', error);
+      }
+    };
+
+    loadPendingUsers();
+
+    // Set up an interval to check for new pending users
+    const interval = setInterval(loadPendingUsers, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const TabButton = ({ id, label, icon: Icon, count }: { id: string; label: string; icon: any; count?: number }) => (
     <button
@@ -45,12 +55,17 @@ const Administration: React.FC = () => {
       <Icon className="h-4 w-4" />
       <span>{label}</span>
       {count !== undefined && count > 0 && (
-        <span className="bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+        <span className="bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center ml-2">
           {count}
         </span>
       )}
     </button>
   );
+
+  const updatePendingUsersInStorage = (updatedUsers: PendingUser[]) => {
+    localStorage.setItem('nctl_pending_users', JSON.stringify(updatedUsers));
+    setPendingUsers(updatedUsers);
+  };
 
   const handleApproveUser = (pendingUserId: string) => {
     const pendingUser = pendingUsers.find(u => u.id === pendingUserId);
@@ -73,11 +88,13 @@ const Administration: React.FC = () => {
     setUsers(prev => [...prev, newUser]);
 
     // Update pending user status
-    setPendingUsers(prev => prev.map(u => 
+    const updatedPendingUsers = pendingUsers.map(u => 
       u.id === pendingUserId 
         ? { ...u, status: 'Approved' as const }
         : u
-    ));
+    );
+    
+    updatePendingUsersInStorage(updatedPendingUsers);
 
     alert(`User ${pendingUser.firstName} ${pendingUser.lastName} has been approved and added to the system.`);
   };
@@ -87,11 +104,13 @@ const Administration: React.FC = () => {
     if (!pendingUser) return;
 
     // Update pending user status
-    setPendingUsers(prev => prev.map(u => 
+    const updatedPendingUsers = pendingUsers.map(u => 
       u.id === pendingUserId 
         ? { ...u, status: 'Rejected' as const }
         : u
-    ));
+    );
+    
+    updatePendingUsersInStorage(updatedPendingUsers);
 
     alert(`User ${pendingUser.firstName} ${pendingUser.lastName} has been rejected.`);
   };
