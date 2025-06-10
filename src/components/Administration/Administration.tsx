@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Users, FlaskRound as Flask, FileText, Plus, Edit, Trash2, Clock, CheckCircle, X } from 'lucide-react';
+import { Settings, Users, FlaskRound as Flask, FileText, Plus, Edit, Trash2, Clock, CheckCircle, X, AlertTriangle } from 'lucide-react';
 import { mockAssays, mockUsers } from '../../data/mockData';
 import { Assay, User } from '../../types';
 
@@ -21,6 +21,8 @@ const Administration: React.FC = () => {
   const [assays, setAssays] = useState<Assay[]>(mockAssays);
   const [users, setUsers] = useState<User[]>(mockUsers);
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
   // Load pending users from localStorage on component mount
   useEffect(() => {
@@ -87,6 +89,16 @@ const Administration: React.FC = () => {
     }
   };
 
+  const removeApprovedUser = (username: string) => {
+    try {
+      const approvedUsers = getApprovedUsers();
+      const filteredUsers = approvedUsers.filter((user: any) => user.username !== username);
+      localStorage.setItem('nctl_approved_users', JSON.stringify(filteredUsers));
+    } catch (error) {
+      console.error('Error removing approved user:', error);
+    }
+  };
+
   const handleApproveUser = (pendingUserId: string) => {
     const pendingUser = pendingUsers.find(u => u.id === pendingUserId);
     if (!pendingUser) return;
@@ -148,6 +160,50 @@ const Administration: React.FC = () => {
     updatePendingUsersInStorage(updatedPendingUsers);
 
     alert(`User ${pendingUser.firstName} ${pendingUser.lastName} has been rejected.`);
+  };
+
+  const handleDeleteUser = (user: User) => {
+    // Prevent deleting the admin user
+    if (user.username === 'admin') {
+      alert('Cannot delete the admin user account.');
+      return;
+    }
+
+    setUserToDelete(user);
+    setShowDeleteConfirm(user.id);
+  };
+
+  const confirmDeleteUser = () => {
+    if (!userToDelete) return;
+
+    // Remove from users list
+    setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
+
+    // Remove from approved users in localStorage
+    removeApprovedUser(userToDelete.username);
+
+    // Also remove from pending users if they exist there
+    const updatedPendingUsers = pendingUsers.filter(u => u.username !== userToDelete.username);
+    updatePendingUsersInStorage(updatedPendingUsers);
+
+    // Remove registration data
+    try {
+      const registrations = JSON.parse(localStorage.getItem('nctl_pending_registrations') || '[]');
+      const filteredRegistrations = registrations.filter((reg: any) => reg.username !== userToDelete.username);
+      localStorage.setItem('nctl_pending_registrations', JSON.stringify(filteredRegistrations));
+    } catch (error) {
+      console.error('Error removing registration data:', error);
+    }
+
+    alert(`User ${userToDelete.firstName} ${userToDelete.lastName} has been permanently deleted from the system.`);
+    
+    setShowDeleteConfirm(null);
+    setUserToDelete(null);
+  };
+
+  const cancelDeleteUser = () => {
+    setShowDeleteConfirm(null);
+    setUserToDelete(null);
   };
 
   const pendingCount = pendingUsers.filter(u => u.status === 'Pending').length;
@@ -391,7 +447,16 @@ const Administration: React.FC = () => {
                           <button className="text-blue-600 hover:text-blue-800 p-1">
                             <Edit className="h-4 w-4" />
                           </button>
-                          <button className="text-red-600 hover:text-red-800 p-1">
+                          <button 
+                            onClick={() => handleDeleteUser(user)}
+                            className={`p-1 ${
+                              user.username === 'admin' 
+                                ? 'text-slate-300 cursor-not-allowed' 
+                                : 'text-red-600 hover:text-red-800'
+                            }`}
+                            disabled={user.username === 'admin'}
+                            title={user.username === 'admin' ? 'Cannot delete admin user' : 'Delete user'}
+                          >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
@@ -491,6 +556,61 @@ const Administration: React.FC = () => {
             <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
               Save Settings
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && userToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="bg-red-100 rounded-full p-2">
+                  <AlertTriangle className="h-6 w-6 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900">Delete User Account</h3>
+              </div>
+              
+              <p className="text-slate-600 mb-6">
+                Are you sure you want to permanently delete the account for{' '}
+                <strong>{userToDelete.firstName} {userToDelete.lastName}</strong> (@{userToDelete.username})?
+              </p>
+              
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div className="flex items-start space-x-2">
+                  <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-medium text-red-900">This action cannot be undone</h4>
+                    <p className="text-sm text-red-700 mt-1">
+                      This will permanently delete:
+                    </p>
+                    <ul className="text-sm text-red-700 mt-2 list-disc list-inside">
+                      <li>User account and profile</li>
+                      <li>Login credentials</li>
+                      <li>All associated permissions</li>
+                      <li>Registration history</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-slate-50 px-6 py-4 flex justify-end space-x-3 rounded-b-lg">
+              <button
+                onClick={cancelDeleteUser}
+                className="px-4 py-2 text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteUser}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Delete Account</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
