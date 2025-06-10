@@ -24,6 +24,17 @@ const Administration: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
+  // Debug function to show all localStorage data
+  const debugAllData = () => {
+    console.log('=== COMPLETE DEBUG INFO ===');
+    console.log('Pending users:', JSON.parse(localStorage.getItem('nctl_pending_users') || '[]'));
+    console.log('Approved users:', JSON.parse(localStorage.getItem('nctl_approved_users') || '[]'));
+    console.log('Registration data:', JSON.parse(localStorage.getItem('nctl_pending_registrations') || '[]'));
+    console.log('Current users state:', users);
+    console.log('Mock users:', mockUsers);
+    console.log('===========================');
+  };
+
   // Load pending users and approved users from localStorage on component mount
   useEffect(() => {
     const loadPendingUsers = () => {
@@ -31,6 +42,7 @@ const Administration: React.FC = () => {
         const stored = localStorage.getItem('nctl_pending_users');
         if (stored) {
           const parsedUsers = JSON.parse(stored);
+          console.log('Loaded pending users:', parsedUsers);
           setPendingUsers(parsedUsers);
         }
       } catch (error) {
@@ -41,28 +53,40 @@ const Administration: React.FC = () => {
     const loadApprovedUsers = () => {
       try {
         const approvedUsers = getApprovedUsers();
-        console.log('Loading approved users:', approvedUsers);
+        console.log('Loading approved users from localStorage:', approvedUsers);
         
         // Convert approved users to User format and merge with mock users
-        const convertedApprovedUsers: User[] = approvedUsers.map((approvedUser: any) => ({
-          id: approvedUser.id,
-          username: approvedUser.username,
-          email: approvedUser.email,
-          firstName: approvedUser.firstName,
-          lastName: approvedUser.lastName,
-          roles: approvedUser.roles || [{ assayType: 'POT', role: 'Prep' }],
-          isActive: approvedUser.isActive !== undefined ? approvedUser.isActive : true
-        }));
+        const convertedApprovedUsers: User[] = approvedUsers.map((approvedUser: any, index: number) => {
+          console.log(`Converting approved user ${index}:`, approvedUser);
+          
+          return {
+            id: approvedUser.id || `AU${String(index + 1).padStart(3, '0')}`, // Ensure ID exists
+            username: approvedUser.username,
+            email: approvedUser.email,
+            firstName: approvedUser.firstName,
+            lastName: approvedUser.lastName,
+            roles: approvedUser.roles || [{ assayType: 'POT', role: 'Prep' }],
+            isActive: approvedUser.isActive !== undefined ? approvedUser.isActive : true
+          };
+        });
 
-        // Merge mock users with approved users, avoiding duplicates
+        console.log('Converted approved users:', convertedApprovedUsers);
+
+        // Start with mock users
         const allUsers = [...mockUsers];
+        
+        // Add approved users, avoiding duplicates by username
         convertedApprovedUsers.forEach(approvedUser => {
-          if (!allUsers.find(user => user.username === approvedUser.username)) {
+          const existingUser = allUsers.find(user => user.username === approvedUser.username);
+          if (!existingUser) {
+            console.log(`Adding approved user to list: ${approvedUser.username}`);
             allUsers.push(approvedUser);
+          } else {
+            console.log(`User ${approvedUser.username} already exists in list, skipping`);
           }
         });
 
-        console.log('All users after merge:', allUsers);
+        console.log('Final merged users list:', allUsers);
         setUsers(allUsers);
       } catch (error) {
         console.error('Error loading approved users:', error);
@@ -108,8 +132,11 @@ const Administration: React.FC = () => {
   const getApprovedUsers = () => {
     try {
       const stored = localStorage.getItem('nctl_approved_users');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
+      const result = stored ? JSON.parse(stored) : [];
+      console.log('Retrieved approved users from localStorage:', result);
+      return result;
+    } catch (error) {
+      console.error('Error retrieving approved users:', error);
       return [];
     }
   };
@@ -117,9 +144,22 @@ const Administration: React.FC = () => {
   const saveApprovedUser = (user: any) => {
     try {
       const approvedUsers = getApprovedUsers();
-      approvedUsers.push(user);
+      
+      // Check if user already exists in approved users
+      const existingIndex = approvedUsers.findIndex((u: any) => u.username === user.username);
+      
+      if (existingIndex >= 0) {
+        // Update existing user
+        approvedUsers[existingIndex] = user;
+        console.log('Updated existing approved user:', user);
+      } else {
+        // Add new user
+        approvedUsers.push(user);
+        console.log('Added new approved user:', user);
+      }
+      
       localStorage.setItem('nctl_approved_users', JSON.stringify(approvedUsers));
-      console.log('Saved approved user:', user);
+      console.log('All approved users after save:', approvedUsers);
     } catch (error) {
       console.error('Error saving approved user:', error);
     }
@@ -131,6 +171,7 @@ const Administration: React.FC = () => {
       const filteredUsers = approvedUsers.filter((user: any) => user.username !== username);
       localStorage.setItem('nctl_approved_users', JSON.stringify(filteredUsers));
       console.log('Removed approved user:', username);
+      console.log('Remaining approved users:', filteredUsers);
     } catch (error) {
       console.error('Error removing approved user:', error);
     }
@@ -140,17 +181,27 @@ const Administration: React.FC = () => {
     const pendingUser = pendingUsers.find(u => u.id === pendingUserId);
     if (!pendingUser) return;
 
+    console.log('Approving user:', pendingUser);
+
     // Get the original registration data to retrieve the password
     const originalRegistration = JSON.parse(localStorage.getItem('nctl_pending_registrations') || '[]')
       .find((reg: any) => reg.username === pendingUser.username);
 
+    console.log('Found registration data:', originalRegistration);
+
     // Create new user ID that doesn't conflict with existing users
-    const existingIds = users.map(u => parseInt(u.id.replace('U', '')));
+    const existingIds = users.map(u => {
+      const idNum = parseInt(u.id.replace(/[A-Z]/g, ''));
+      return isNaN(idNum) ? 0 : idNum;
+    });
     const newIdNumber = Math.max(...existingIds, 0) + 1;
+    const newUserId = `U${String(newIdNumber).padStart(3, '0')}`;
+
+    console.log('Generated new user ID:', newUserId);
 
     // Create new user from pending user
     const newUser: User = {
-      id: `U${String(newIdNumber).padStart(3, '0')}`,
+      id: newUserId,
       username: pendingUser.username,
       email: pendingUser.email,
       firstName: pendingUser.firstName,
@@ -161,6 +212,8 @@ const Administration: React.FC = () => {
       isActive: true
     };
 
+    console.log('Created new user object:', newUser);
+
     // Create approved user with login credentials
     const approvedUserWithCredentials = {
       ...newUser,
@@ -169,18 +222,28 @@ const Administration: React.FC = () => {
       createdDate: new Date().toISOString().split('T')[0]
     };
 
+    console.log('Created approved user with credentials:', approvedUserWithCredentials);
+
+    // Save to approved users for login system FIRST
+    saveApprovedUser(approvedUserWithCredentials);
+
     // Add to users list immediately
     setUsers(prev => {
       const updated = [...prev];
       // Check if user already exists to avoid duplicates
-      if (!updated.find(u => u.username === newUser.username)) {
+      const existingUserIndex = updated.findIndex(u => u.username === newUser.username);
+      if (existingUserIndex >= 0) {
+        // Update existing user
+        updated[existingUserIndex] = newUser;
+        console.log('Updated existing user in list');
+      } else {
+        // Add new user
         updated.push(newUser);
+        console.log('Added new user to list');
       }
+      console.log('Updated users list:', updated);
       return updated;
     });
-
-    // Save to approved users for login system
-    saveApprovedUser(approvedUserWithCredentials);
 
     // Update pending user status
     const updatedPendingUsers = pendingUsers.map(u => 
@@ -224,8 +287,14 @@ const Administration: React.FC = () => {
   const confirmDeleteUser = () => {
     if (!userToDelete) return;
 
+    console.log('Deleting user:', userToDelete);
+
     // Remove from users list
-    setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
+    setUsers(prev => {
+      const filtered = prev.filter(u => u.id !== userToDelete.id);
+      console.log('Users after deletion:', filtered);
+      return filtered;
+    });
 
     // Remove from approved users in localStorage
     removeApprovedUser(userToDelete.username);
@@ -239,6 +308,7 @@ const Administration: React.FC = () => {
       const registrations = JSON.parse(localStorage.getItem('nctl_pending_registrations') || '[]');
       const filteredRegistrations = registrations.filter((reg: any) => reg.username !== userToDelete.username);
       localStorage.setItem('nctl_pending_registrations', JSON.stringify(filteredRegistrations));
+      console.log('Removed registration data for:', userToDelete.username);
     } catch (error) {
       console.error('Error removing registration data:', error);
     }
@@ -262,6 +332,14 @@ const Administration: React.FC = () => {
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Administration</h2>
         <p className="text-slate-600">Manage assays, users, and system settings</p>
+        
+        {/* Debug Button */}
+        <button
+          onClick={debugAllData}
+          className="mt-2 text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded hover:bg-gray-200"
+        >
+          🐛 Debug: Show All Data
+        </button>
       </div>
 
       {/* Tabs */}
