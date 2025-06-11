@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Settings, Users, FlaskRound as Flask, FileText, Plus, Edit, Trash2, Shield, Lock, Unlock, Eye, EyeOff } from 'lucide-react';
+import { Settings, Users, FlaskRound as Flask, FileText, Plus, Edit, Trash2, Shield, Lock, Unlock, Eye, EyeOff, X } from 'lucide-react';
 import { mockAssays, mockUsers, mockRoleDefinitions, mockPermissions } from '../../data/mockData';
-import { Assay, User, RoleDefinition, Permission } from '../../types';
+import { Assay, User, RoleDefinition, Permission, Analyte, QCType } from '../../types';
 
 const Administration: React.FC = () => {
   const [activeTab, setActiveTab] = useState('assays');
@@ -29,6 +29,12 @@ const Administration: React.FC = () => {
     assayType: ''
   });
 
+  // Assay management state
+  const [showAssayModal, setShowAssayModal] = useState(false);
+  const [selectedAssay, setSelectedAssay] = useState<Assay | null>(null);
+  const [assayModalMode, setAssayModalMode] = useState<'create' | 'edit' | 'view'>('view');
+  const [editingAssay, setEditingAssay] = useState<Assay | null>(null);
+
   // Load pending and approved users from localStorage
   React.useEffect(() => {
     try {
@@ -54,6 +60,172 @@ const Administration: React.FC = () => {
       <span>{label}</span>
     </button>
   );
+
+  // Assay management functions
+  const editAssay = (assay: Assay) => {
+    setSelectedAssay(assay);
+    setEditingAssay({ ...assay });
+    setAssayModalMode('edit');
+    setShowAssayModal(true);
+  };
+
+  const viewAssay = (assay: Assay) => {
+    setSelectedAssay(assay);
+    setAssayModalMode('view');
+    setShowAssayModal(true);
+  };
+
+  const createNewAssay = () => {
+    const newAssay: Assay = {
+      id: '',
+      name: '',
+      code: '',
+      description: '',
+      isActive: true,
+      createdDate: new Date().toISOString().split('T')[0],
+      analytes: [],
+      qcTypes: [],
+      version: '1.0',
+      revisionHistory: []
+    };
+    setEditingAssay(newAssay);
+    setSelectedAssay(null);
+    setAssayModalMode('create');
+    setShowAssayModal(true);
+  };
+
+  const saveAssay = () => {
+    if (!editingAssay) return;
+
+    if (!editingAssay.name || !editingAssay.code || !editingAssay.description) {
+      alert('Please fill in all required fields (Name, Code, Description)');
+      return;
+    }
+
+    if (assayModalMode === 'create') {
+      const newId = editingAssay.code.toUpperCase();
+      const existingAssay = assays.find(a => a.id === newId);
+      if (existingAssay) {
+        alert('An assay with this code already exists');
+        return;
+      }
+
+      const newAssay: Assay = {
+        ...editingAssay,
+        id: newId,
+        code: editingAssay.code.toUpperCase(),
+        createdDate: new Date().toISOString().split('T')[0]
+      };
+
+      setAssays(prev => [...prev, newAssay]);
+      alert('Assay created successfully!');
+    } else {
+      setAssays(prev => prev.map(assay => 
+        assay.id === editingAssay.id ? editingAssay : assay
+      ));
+      alert('Assay updated successfully!');
+    }
+
+    setShowAssayModal(false);
+    setEditingAssay(null);
+    setSelectedAssay(null);
+  };
+
+  const deleteAssay = (assayId: string) => {
+    if (!confirm('Are you sure you want to delete this assay? This action cannot be undone.')) {
+      return;
+    }
+
+    setAssays(prev => prev.filter(assay => assay.id !== assayId));
+    alert('Assay deleted successfully!');
+  };
+
+  const addAnalyte = () => {
+    if (!editingAssay) return;
+
+    const newAnalyte: Analyte = {
+      id: '',
+      name: '',
+      unit: '',
+      reportingLimit: 0,
+      effectiveDate: new Date().toISOString().split('T')[0]
+    };
+
+    setEditingAssay({
+      ...editingAssay,
+      analytes: [...editingAssay.analytes, newAnalyte]
+    });
+  };
+
+  const updateAnalyte = (index: number, field: keyof Analyte, value: any) => {
+    if (!editingAssay) return;
+
+    const updatedAnalytes = [...editingAssay.analytes];
+    updatedAnalytes[index] = { ...updatedAnalytes[index], [field]: value };
+    
+    setEditingAssay({
+      ...editingAssay,
+      analytes: updatedAnalytes
+    });
+  };
+
+  const removeAnalyte = (index: number) => {
+    if (!editingAssay) return;
+
+    setEditingAssay({
+      ...editingAssay,
+      analytes: editingAssay.analytes.filter((_, i) => i !== index)
+    });
+  };
+
+  const addQCType = () => {
+    if (!editingAssay) return;
+
+    const newQCType: QCType = {
+      id: '',
+      name: '',
+      description: '',
+      frequency: 1,
+      limits: { lower: 80, upper: 120 }
+    };
+
+    setEditingAssay({
+      ...editingAssay,
+      qcTypes: [...editingAssay.qcTypes, newQCType]
+    });
+  };
+
+  const updateQCType = (index: number, field: string, value: any) => {
+    if (!editingAssay) return;
+
+    const updatedQCTypes = [...editingAssay.qcTypes];
+    if (field === 'limits.lower' || field === 'limits.upper') {
+      const [parent, child] = field.split('.');
+      updatedQCTypes[index] = {
+        ...updatedQCTypes[index],
+        [parent]: {
+          ...updatedQCTypes[index].limits,
+          [child]: value
+        }
+      };
+    } else {
+      updatedQCTypes[index] = { ...updatedQCTypes[index], [field]: value };
+    }
+    
+    setEditingAssay({
+      ...editingAssay,
+      qcTypes: updatedQCTypes
+    });
+  };
+
+  const removeQCType = (index: number) => {
+    if (!editingAssay) return;
+
+    setEditingAssay({
+      ...editingAssay,
+      qcTypes: editingAssay.qcTypes.filter((_, i) => i !== index)
+    });
+  };
 
   // User management functions
   const approveUser = (pendingUser: any) => {
@@ -252,7 +424,10 @@ const Administration: React.FC = () => {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-900">Assay Configuration</h3>
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+            <button 
+              onClick={createNewAssay}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+            >
               <Plus className="h-4 w-4" />
               <span>Add Assay</span>
             </button>
@@ -267,10 +442,25 @@ const Administration: React.FC = () => {
                     <p className="text-sm text-slate-600">{assay.code} • {assay.description}</p>
                   </div>
                   <div className="flex space-x-2">
-                    <button className="p-2 text-slate-600 hover:text-blue-600">
+                    <button 
+                      onClick={() => viewAssay(assay)}
+                      className="p-2 text-slate-600 hover:text-blue-600"
+                      title="View Assay"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    <button 
+                      onClick={() => editAssay(assay)}
+                      className="p-2 text-slate-600 hover:text-blue-600"
+                      title="Edit Assay"
+                    >
                       <Edit className="h-4 w-4" />
                     </button>
-                    <button className="p-2 text-slate-600 hover:text-red-600">
+                    <button 
+                      onClick={() => deleteAssay(assay.id)}
+                      className="p-2 text-slate-600 hover:text-red-600"
+                      title="Delete Assay"
+                    >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -615,6 +805,325 @@ const Administration: React.FC = () => {
         </div>
       )}
 
+      {/* Assay Edit/Create Modal */}
+      {showAssayModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-slate-900">
+                  {assayModalMode === 'create' ? 'Create New Assay' : 
+                   assayModalMode === 'edit' ? `Edit Assay: ${selectedAssay?.name}` : 
+                   `View Assay: ${selectedAssay?.name}`}
+                </h3>
+                <button
+                  onClick={() => setShowAssayModal(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Basic Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Assay Name *</label>
+                  <input
+                    type="text"
+                    value={editingAssay?.name || ''}
+                    onChange={(e) => setEditingAssay(prev => prev ? { ...prev, name: e.target.value } : null)}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                    placeholder="e.g., Potency Analysis"
+                    readOnly={assayModalMode === 'view'}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Assay Code *</label>
+                  <input
+                    type="text"
+                    value={editingAssay?.code || ''}
+                    onChange={(e) => setEditingAssay(prev => prev ? { ...prev, code: e.target.value.toUpperCase() } : null)}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                    placeholder="e.g., POT"
+                    readOnly={assayModalMode === 'view'}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Description *</label>
+                  <textarea
+                    value={editingAssay?.description || ''}
+                    onChange={(e) => setEditingAssay(prev => prev ? { ...prev, description: e.target.value } : null)}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                    rows={3}
+                    placeholder="Describe the assay methodology and purpose..."
+                    readOnly={assayModalMode === 'view'}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Version</label>
+                  <input
+                    type="text"
+                    value={editingAssay?.version || '1.0'}
+                    onChange={(e) => setEditingAssay(prev => prev ? { ...prev, version: e.target.value } : null)}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                    readOnly={assayModalMode === 'view'}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                  <select
+                    value={editingAssay?.isActive ? 'active' : 'inactive'}
+                    onChange={(e) => setEditingAssay(prev => prev ? { ...prev, isActive: e.target.value === 'active' } : null)}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                    disabled={assayModalMode === 'view'}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Analytes Section */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-semibold text-slate-900">Analytes</h4>
+                  {assayModalMode !== 'view' && (
+                    <button
+                      onClick={addAnalyte}
+                      className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 flex items-center space-x-1"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Add Analyte</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  {editingAssay?.analytes.map((analyte, index) => (
+                    <div key={index} className="border border-slate-200 rounded-lg p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">ID</label>
+                          <input
+                            type="text"
+                            value={analyte.id}
+                            onChange={(e) => updateAnalyte(index, 'id', e.target.value)}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            placeholder="THC"
+                            readOnly={assayModalMode === 'view'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                          <input
+                            type="text"
+                            value={analyte.name}
+                            onChange={(e) => updateAnalyte(index, 'name', e.target.value)}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            placeholder="Delta-9 THC"
+                            readOnly={assayModalMode === 'view'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Unit</label>
+                          <input
+                            type="text"
+                            value={analyte.unit}
+                            onChange={(e) => updateAnalyte(index, 'unit', e.target.value)}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            placeholder="mg/g"
+                            readOnly={assayModalMode === 'view'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Reporting Limit</label>
+                          <input
+                            type="number"
+                            step="0.001"
+                            value={analyte.reportingLimit}
+                            onChange={(e) => updateAnalyte(index, 'reportingLimit', parseFloat(e.target.value))}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            readOnly={assayModalMode === 'view'}
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          {assayModalMode !== 'view' && (
+                            <button
+                              onClick={() => removeAnalyte(index)}
+                              className="text-red-600 hover:text-red-800 p-2"
+                              title="Remove Analyte"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Action Limit</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={analyte.actionLimit || ''}
+                            onChange={(e) => updateAnalyte(index, 'actionLimit', e.target.value ? parseFloat(e.target.value) : undefined)}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            readOnly={assayModalMode === 'view'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Warning Limit</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={analyte.warningLimit || ''}
+                            onChange={(e) => updateAnalyte(index, 'warningLimit', e.target.value ? parseFloat(e.target.value) : undefined)}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            readOnly={assayModalMode === 'view'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Effective Date</label>
+                          <input
+                            type="date"
+                            value={analyte.effectiveDate}
+                            onChange={(e) => updateAnalyte(index, 'effectiveDate', e.target.value)}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            readOnly={assayModalMode === 'view'}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* QC Types Section */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-semibold text-slate-900">QC Types</h4>
+                  {assayModalMode !== 'view' && (
+                    <button
+                      onClick={addQCType}
+                      className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 flex items-center space-x-1"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Add QC Type</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  {editingAssay?.qcTypes.map((qcType, index) => (
+                    <div key={index} className="border border-slate-200 rounded-lg p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">ID</label>
+                          <input
+                            type="text"
+                            value={qcType.id}
+                            onChange={(e) => updateQCType(index, 'id', e.target.value)}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            placeholder="CCV"
+                            readOnly={assayModalMode === 'view'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                          <input
+                            type="text"
+                            value={qcType.name}
+                            onChange={(e) => updateQCType(index, 'name', e.target.value)}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            placeholder="Continuing Calibration Verification"
+                            readOnly={assayModalMode === 'view'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Frequency</label>
+                          <input
+                            type="number"
+                            value={qcType.frequency}
+                            onChange={(e) => updateQCType(index, 'frequency', parseInt(e.target.value))}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            readOnly={assayModalMode === 'view'}
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          {assayModalMode !== 'view' && (
+                            <button
+                              onClick={() => removeQCType(index)}
+                              className="text-red-600 hover:text-red-800 p-2"
+                              title="Remove QC Type"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                          <input
+                            type="text"
+                            value={qcType.description}
+                            onChange={(e) => updateQCType(index, 'description', e.target.value)}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            placeholder="Description of QC procedure"
+                            readOnly={assayModalMode === 'view'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Limits (Lower - Upper)</label>
+                          <div className="flex space-x-2">
+                            <input
+                              type="number"
+                              value={qcType.limits.lower}
+                              onChange={(e) => updateQCType(index, 'limits.lower', parseFloat(e.target.value))}
+                              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                              placeholder="80"
+                              readOnly={assayModalMode === 'view'}
+                            />
+                            <input
+                              type="number"
+                              value={qcType.limits.upper}
+                              onChange={(e) => updateQCType(index, 'limits.upper', parseFloat(e.target.value))}
+                              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                              placeholder="120"
+                              readOnly={assayModalMode === 'view'}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-200 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowAssayModal(false)}
+                className="px-4 py-2 text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"
+              >
+                {assayModalMode === 'view' ? 'Close' : 'Cancel'}
+              </button>
+              {assayModalMode !== 'view' && (
+                <button
+                  onClick={saveAssay}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  {assayModalMode === 'create' ? 'Create Assay' : 'Save Changes'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* User Edit Modal */}
       {showUserModal && selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -628,7 +1137,7 @@ const Administration: React.FC = () => {
                   onClick={() => setShowUserModal(false)}
                   className="text-slate-400 hover:text-slate-600"
                 >
-                  ×
+                  <X className="h-6 w-6" />
                 </button>
               </div>
             </div>
@@ -767,7 +1276,7 @@ const Administration: React.FC = () => {
                   onClick={() => setShowRoleModal(false)}
                   className="text-slate-400 hover:text-slate-600"
                 >
-                  ×
+                  <X className="h-6 w-6" />
                 </button>
               </div>
             </div>
