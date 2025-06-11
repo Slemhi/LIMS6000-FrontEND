@@ -1,51 +1,15 @@
 import React, { useState } from 'react';
-import { Settings, Users, FlaskRound as Flask, FileText, Plus, Edit, Trash2, Shield, Lock, Unlock, Eye, EyeOff, X } from 'lucide-react';
-import { mockAssays, mockUsers, mockRoleDefinitions, mockPermissions } from '../../data/mockData';
-import { Assay, User, RoleDefinition, Permission, Analyte, QCType } from '../../types';
+import { Settings, Users, FlaskRound as Flask, FileText, Plus, Edit, Trash2, Eye, X } from 'lucide-react';
+import { mockAssays, mockUsers } from '../../data/mockData';
+import { Assay, User } from '../../types';
 
 const Administration: React.FC = () => {
   const [activeTab, setActiveTab] = useState('assays');
   const [assays, setAssays] = useState<Assay[]>(mockAssays);
   const [users, setUsers] = useState<User[]>(mockUsers);
-  const [roleDefinitions, setRoleDefinitions] = useState<RoleDefinition[]>(mockRoleDefinitions);
-  const [permissions] = useState<Permission[]>(mockPermissions);
-  
-  // User management state
-  const [pendingUsers, setPendingUsers] = useState<any[]>([]);
-  const [approvedUsers, setApprovedUsers] = useState<any[]>([]);
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [userModalMode, setUserModalMode] = useState<'view' | 'edit' | 'approve'>('view');
-  
-  // Role management state
-  const [showRoleModal, setShowRoleModal] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<RoleDefinition | null>(null);
-  const [roleModalMode, setRoleModalMode] = useState<'create' | 'edit' | 'view'>('view');
-  const [newRole, setNewRole] = useState<Partial<RoleDefinition>>({
-    name: '',
-    description: '',
-    permissions: [],
-    isSystemRole: false,
-    assayType: ''
-  });
-
-  // Assay management state
   const [showAssayModal, setShowAssayModal] = useState(false);
-  const [selectedAssay, setSelectedAssay] = useState<Assay | null>(null);
-  const [assayModalMode, setAssayModalMode] = useState<'create' | 'edit' | 'view'>('view');
   const [editingAssay, setEditingAssay] = useState<Assay | null>(null);
-
-  // Load pending and approved users from localStorage
-  React.useEffect(() => {
-    try {
-      const pending = JSON.parse(localStorage.getItem('nctl_pending_users') || '[]');
-      const approved = JSON.parse(localStorage.getItem('nctl_approved_users') || '[]');
-      setPendingUsers(pending);
-      setApprovedUsers(approved);
-    } catch (error) {
-      console.error('Error loading users from localStorage:', error);
-    }
-  }, []);
+  const [viewMode, setViewMode] = useState<'view' | 'edit'>('view');
 
   const TabButton = ({ id, label, icon: Icon }: { id: string; label: string; icon: any }) => (
     <button
@@ -61,361 +25,66 @@ const Administration: React.FC = () => {
     </button>
   );
 
-  // Assay management functions
-  const editAssay = (assay: Assay) => {
-    setSelectedAssay(assay);
-    setEditingAssay({ ...assay });
-    setAssayModalMode('edit');
+  const handleViewAssay = (assay: Assay) => {
+    setEditingAssay(assay);
+    setViewMode('view');
     setShowAssayModal(true);
   };
 
-  const viewAssay = (assay: Assay) => {
-    setSelectedAssay(assay);
-    setAssayModalMode('view');
+  const handleEditAssay = (assay: Assay) => {
+    setEditingAssay(assay);
+    setViewMode('edit');
     setShowAssayModal(true);
   };
 
-  const createNewAssay = () => {
-    const newAssay: Assay = {
-      id: '',
-      name: '',
-      code: '',
-      description: '',
-      isActive: true,
-      createdDate: new Date().toISOString().split('T')[0],
-      analytes: [],
-      qcTypes: [],
-      version: '1.0',
-      revisionHistory: []
-    };
-    setEditingAssay(newAssay);
-    setSelectedAssay(null);
-    setAssayModalMode('create');
+  const handleCreateAssay = () => {
+    setEditingAssay(null);
+    setViewMode('edit');
     setShowAssayModal(true);
   };
 
-  const saveAssay = () => {
-    if (!editingAssay) return;
-
-    if (!editingAssay.name || !editingAssay.code || !editingAssay.description) {
-      alert('Please fill in all required fields (Name, Code, Description)');
-      return;
+  const handleDeleteAssay = (assayId: string) => {
+    if (confirm('Are you sure you want to delete this assay? This action cannot be undone.')) {
+      setAssays(prev => prev.filter(a => a.id !== assayId));
     }
+  };
 
-    if (assayModalMode === 'create') {
-      const newId = editingAssay.code.toUpperCase();
-      const existingAssay = assays.find(a => a.id === newId);
-      if (existingAssay) {
-        alert('An assay with this code already exists');
-        return;
-      }
-
-      const newAssay: Assay = {
-        ...editingAssay,
-        id: newId,
-        code: editingAssay.code.toUpperCase(),
-        createdDate: new Date().toISOString().split('T')[0]
-      };
-
-      setAssays(prev => [...prev, newAssay]);
-      alert('Assay created successfully!');
+  const handleSaveAssay = (assayData: any) => {
+    if (editingAssay) {
+      // Update existing assay
+      setAssays(prev => prev.map(a => a.id === editingAssay.id ? { ...a, ...assayData } : a));
     } else {
-      setAssays(prev => prev.map(assay => 
-        assay.id === editingAssay.id ? editingAssay : assay
-      ));
-      alert('Assay updated successfully!');
+      // Create new assay
+      const newAssay: Assay = {
+        id: assayData.code,
+        name: assayData.name,
+        code: assayData.code.toUpperCase(),
+        description: assayData.description,
+        isActive: assayData.isActive,
+        createdDate: new Date().toISOString().split('T')[0],
+        analytes: assayData.analytes || [],
+        qcTypes: assayData.qcTypes || [],
+        version: assayData.version || '1.0',
+        revisionHistory: []
+      };
+      setAssays(prev => [...prev, newAssay]);
     }
-
     setShowAssayModal(false);
     setEditingAssay(null);
-    setSelectedAssay(null);
   };
-
-  const deleteAssay = (assayId: string) => {
-    if (!confirm('Are you sure you want to delete this assay? This action cannot be undone.')) {
-      return;
-    }
-
-    setAssays(prev => prev.filter(assay => assay.id !== assayId));
-    alert('Assay deleted successfully!');
-  };
-
-  const addAnalyte = () => {
-    if (!editingAssay) return;
-
-    const newAnalyte: Analyte = {
-      id: '',
-      name: '',
-      unit: '',
-      reportingLimit: 0,
-      effectiveDate: new Date().toISOString().split('T')[0]
-    };
-
-    setEditingAssay({
-      ...editingAssay,
-      analytes: [...editingAssay.analytes, newAnalyte]
-    });
-  };
-
-  const updateAnalyte = (index: number, field: keyof Analyte, value: any) => {
-    if (!editingAssay) return;
-
-    const updatedAnalytes = [...editingAssay.analytes];
-    updatedAnalytes[index] = { ...updatedAnalytes[index], [field]: value };
-    
-    setEditingAssay({
-      ...editingAssay,
-      analytes: updatedAnalytes
-    });
-  };
-
-  const removeAnalyte = (index: number) => {
-    if (!editingAssay) return;
-
-    setEditingAssay({
-      ...editingAssay,
-      analytes: editingAssay.analytes.filter((_, i) => i !== index)
-    });
-  };
-
-  const addQCType = () => {
-    if (!editingAssay) return;
-
-    const newQCType: QCType = {
-      id: '',
-      name: '',
-      description: '',
-      frequency: 1,
-      limits: { lower: 80, upper: 120 }
-    };
-
-    setEditingAssay({
-      ...editingAssay,
-      qcTypes: [...editingAssay.qcTypes, newQCType]
-    });
-  };
-
-  const updateQCType = (index: number, field: string, value: any) => {
-    if (!editingAssay) return;
-
-    const updatedQCTypes = [...editingAssay.qcTypes];
-    if (field === 'limits.lower' || field === 'limits.upper') {
-      const [parent, child] = field.split('.');
-      updatedQCTypes[index] = {
-        ...updatedQCTypes[index],
-        [parent]: {
-          ...updatedQCTypes[index].limits,
-          [child]: value
-        }
-      };
-    } else {
-      updatedQCTypes[index] = { ...updatedQCTypes[index], [field]: value };
-    }
-    
-    setEditingAssay({
-      ...editingAssay,
-      qcTypes: updatedQCTypes
-    });
-  };
-
-  const removeQCType = (index: number) => {
-    if (!editingAssay) return;
-
-    setEditingAssay({
-      ...editingAssay,
-      qcTypes: editingAssay.qcTypes.filter((_, i) => i !== index)
-    });
-  };
-
-  // User management functions
-  const approveUser = (pendingUser: any) => {
-    try {
-      // Get registration data with password
-      const registrations = JSON.parse(localStorage.getItem('nctl_pending_registrations') || '[]');
-      const registrationData = registrations.find((r: any) => r.username === pendingUser.username);
-      
-      if (!registrationData) {
-        alert('Registration data not found. Cannot approve user.');
-        return;
-      }
-
-      const newApprovedUser = {
-        id: `AU${String(approvedUsers.length + 1).padStart(3, '0')}`,
-        username: pendingUser.username,
-        password: registrationData.password, // Get password from registration data
-        email: pendingUser.email,
-        firstName: pendingUser.firstName,
-        lastName: pendingUser.lastName,
-        phone: pendingUser.phone,
-        department: pendingUser.department,
-        roles: [
-          { assayType: 'POT', role: 'Prep' } // Default role
-        ],
-        isActive: true,
-        lastLogin: '',
-        createdDate: pendingUser.requestDate,
-        approvedDate: new Date().toISOString().split('T')[0]
-      };
-
-      // Add to approved users
-      const updatedApproved = [...approvedUsers, newApprovedUser];
-      setApprovedUsers(updatedApproved);
-      localStorage.setItem('nctl_approved_users', JSON.stringify(updatedApproved));
-
-      // Remove from pending users
-      const updatedPending = pendingUsers.filter(u => u.id !== pendingUser.id);
-      setPendingUsers(updatedPending);
-      localStorage.setItem('nctl_pending_users', JSON.stringify(updatedPending));
-
-      console.log('User approved:', newApprovedUser);
-      alert(`User ${pendingUser.username} has been approved and can now log in.`);
-    } catch (error) {
-      console.error('Error approving user:', error);
-      alert('Error approving user. Please try again.');
-    }
-  };
-
-  const deleteUser = (user: any, type: 'pending' | 'approved') => {
-    if (!confirm(`Are you sure you want to delete user ${user.username}?`)) {
-      return;
-    }
-
-    try {
-      if (type === 'pending') {
-        const updated = pendingUsers.filter(u => u.id !== user.id);
-        setPendingUsers(updated);
-        localStorage.setItem('nctl_pending_users', JSON.stringify(updated));
-      } else {
-        const updated = approvedUsers.filter(u => u.id !== user.id);
-        setApprovedUsers(updated);
-        localStorage.setItem('nctl_approved_users', JSON.stringify(updated));
-      }
-      
-      alert(`User ${user.username} has been deleted.`);
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      alert('Error deleting user. Please try again.');
-    }
-  };
-
-  const editUser = (user: any) => {
-    setSelectedUser(user);
-    setUserModalMode('edit');
-    setShowUserModal(true);
-  };
-
-  const updateUserRoles = (userId: string, newRoles: any[]) => {
-    try {
-      // Update in approved users
-      const updatedApproved = approvedUsers.map(user => 
-        user.id === userId ? { ...user, roles: newRoles } : user
-      );
-      setApprovedUsers(updatedApproved);
-      localStorage.setItem('nctl_approved_users', JSON.stringify(updatedApproved));
-      
-      // Also update in mock users if exists
-      const updatedMockUsers = users.map(user => 
-        user.id === userId ? { ...user, roles: newRoles } : user
-      );
-      setUsers(updatedMockUsers);
-      
-      alert('User roles updated successfully!');
-    } catch (error) {
-      console.error('Error updating user roles:', error);
-      alert('Error updating user roles. Please try again.');
-    }
-  };
-
-  // Role management functions
-  const createRole = () => {
-    if (!newRole.name || !newRole.description) {
-      alert('Please fill in all required fields');
-      return;
-    }
-
-    const roleId = newRole.name.toLowerCase().replace(/\s+/g, '-');
-    const role: RoleDefinition = {
-      id: roleId,
-      name: newRole.name,
-      description: newRole.description,
-      permissions: newRole.permissions || [],
-      isSystemRole: false,
-      createdDate: new Date().toISOString().split('T')[0],
-      assayType: newRole.assayType || undefined
-    };
-
-    setRoleDefinitions(prev => [...prev, role]);
-    setNewRole({
-      name: '',
-      description: '',
-      permissions: [],
-      isSystemRole: false,
-      assayType: ''
-    });
-    setShowRoleModal(false);
-    alert('Role created successfully!');
-  };
-
-  const updateRole = (updatedRole: RoleDefinition) => {
-    setRoleDefinitions(prev => prev.map(role => 
-      role.id === updatedRole.id ? updatedRole : role
-    ));
-    setShowRoleModal(false);
-    alert('Role updated successfully!');
-  };
-
-  const deleteRole = (roleId: string) => {
-    const role = roleDefinitions.find(r => r.id === roleId);
-    if (role?.isSystemRole) {
-      alert('Cannot delete system roles');
-      return;
-    }
-
-    if (!confirm('Are you sure you want to delete this role?')) {
-      return;
-    }
-
-    setRoleDefinitions(prev => prev.filter(role => role.id !== roleId));
-    alert('Role deleted successfully!');
-  };
-
-  const getPermissionsByCategory = (category: string) => {
-    return permissions.filter(p => p.category === category);
-  };
-
-  const togglePermission = (permissionId: string, rolePermissions: Permission[]) => {
-    const hasPermission = rolePermissions.some(p => p.id === permissionId);
-    const permission = permissions.find(p => p.id === permissionId);
-    
-    if (!permission) return rolePermissions;
-
-    if (hasPermission) {
-      return rolePermissions.filter(p => p.id !== permissionId);
-    } else {
-      return [...rolePermissions, permission];
-    }
-  };
-
-  // Combine all users for display
-  const allUsers = [
-    ...users.map(u => ({ ...u, source: 'system', status: 'Active' })),
-    ...approvedUsers.map(u => ({ ...u, source: 'approved', status: 'Active' })),
-    ...pendingUsers.map(u => ({ ...u, source: 'pending', status: 'Pending' }))
-  ];
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Administration</h2>
-        <p className="text-slate-600">Manage assays, users, roles, and system settings</p>
+        <p className="text-slate-600">Manage assays, users, and system settings</p>
       </div>
 
       {/* Tabs */}
       <div className="flex space-x-2 border-b border-slate-200 pb-4">
         <TabButton id="assays" label="Assay Management" icon={Flask} />
         <TabButton id="users" label="User Management" icon={Users} />
-        <TabButton id="roles" label="Role Management" icon={Shield} />
         <TabButton id="settings" label="System Settings" icon={Settings} />
       </div>
 
@@ -425,7 +94,7 @@ const Administration: React.FC = () => {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-900">Assay Configuration</h3>
             <button 
-              onClick={createNewAssay}
+              onClick={handleCreateAssay}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
             >
               <Plus className="h-4 w-4" />
@@ -443,21 +112,21 @@ const Administration: React.FC = () => {
                   </div>
                   <div className="flex space-x-2">
                     <button 
-                      onClick={() => viewAssay(assay)}
+                      onClick={() => handleViewAssay(assay)}
                       className="p-2 text-slate-600 hover:text-blue-600"
                       title="View Assay"
                     >
                       <Eye className="h-4 w-4" />
                     </button>
                     <button 
-                      onClick={() => editAssay(assay)}
+                      onClick={() => handleEditAssay(assay)}
                       className="p-2 text-slate-600 hover:text-blue-600"
                       title="Edit Assay"
                     >
                       <Edit className="h-4 w-4" />
                     </button>
                     <button 
-                      onClick={() => deleteAssay(assay.id)}
+                      onClick={() => handleDeleteAssay(assay.id)}
                       className="p-2 text-slate-600 hover:text-red-600"
                       title="Delete Assay"
                     >
@@ -470,16 +139,11 @@ const Administration: React.FC = () => {
                   <div>
                     <span className="text-sm font-medium text-slate-700">Analytes:</span>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {assay.analytes.slice(0, 3).map((analyte) => (
+                      {assay.analytes.map((analyte) => (
                         <span key={analyte.id} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
                           {analyte.name} ({analyte.unit})
                         </span>
                       ))}
-                      {assay.analytes.length > 3 && (
-                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-600">
-                          +{assay.analytes.length - 3} more
-                        </span>
-                      )}
                     </div>
                   </div>
 
@@ -512,14 +176,12 @@ const Administration: React.FC = () => {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-900">User Management</h3>
-            {pendingUsers.length > 0 && (
-              <div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
-                {pendingUsers.length} pending approval{pendingUsers.length !== 1 ? 's' : ''}
-              </div>
-            )}
+            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+              <Plus className="h-4 w-4" />
+              <span>Add User</span>
+            </button>
           </div>
 
-          {/* All Users Table */}
           <div className="bg-white rounded-lg shadow-sm border border-slate-200">
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -534,77 +196,41 @@ const Administration: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {allUsers.map((user) => (
-                    <tr key={`${user.source}-${user.id}`} className="border-b border-slate-100 hover:bg-slate-50">
+                  {users.map((user) => (
+                    <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="py-3 px-4">
                         <div>
                           <div className="font-medium text-slate-900">
                             {user.firstName} {user.lastName}
                           </div>
-                          {user.department && (
-                            <div className="text-xs text-slate-500">{user.department}</div>
-                          )}
                         </div>
                       </td>
                       <td className="py-3 px-4 font-mono text-sm">{user.username}</td>
                       <td className="py-3 px-4 text-slate-600">{user.email}</td>
                       <td className="py-3 px-4">
-                        {user.status === 'Pending' ? (
-                          <span className="text-sm text-slate-500">Roles assigned after approval</span>
-                        ) : (
-                          <div className="flex flex-wrap gap-1">
-                            {user.roles?.map((role: any, index: number) => (
-                              <span key={index} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                                {role.assayType !== 'ALL' ? `${role.assayType}-` : ''}{role.role}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                        <div className="flex flex-wrap gap-1">
+                          {user.roles.map((role, index) => (
+                            <span key={index} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                              {role.assayType !== 'ALL' ? `${role.assayType}-` : ''}{role.role}
+                            </span>
+                          ))}
+                        </div>
                       </td>
                       <td className="py-3 px-4">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          user.status === 'Active' ? 'bg-green-100 text-green-800' : 
-                          user.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
+                          user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}>
-                          {user.status}
+                          {user.isActive ? 'Active' : 'Inactive'}
                         </span>
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex space-x-2">
-                          {user.status === 'Pending' ? (
-                            <>
-                              <button
-                                onClick={() => approveUser(user)}
-                                className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => deleteUser(user, 'pending')}
-                                className="text-red-600 hover:text-red-800 p-1"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => editUser(user)}
-                                className="text-blue-600 hover:text-blue-800 p-1"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              {user.source !== 'system' && (
-                                <button
-                                  onClick={() => deleteUser(user, 'approved')}
-                                  className="text-red-600 hover:text-red-800 p-1"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              )}
-                            </>
-                          )}
+                          <button className="text-blue-600 hover:text-blue-800 p-1">
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button className="text-red-600 hover:text-red-800 p-1">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -612,105 +238,6 @@ const Administration: React.FC = () => {
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Role Management */}
-      {activeTab === 'roles' && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-900">Role Management</h3>
-            <button
-              onClick={() => {
-                setRoleModalMode('create');
-                setSelectedRole(null);
-                setShowRoleModal(true);
-              }}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Create Role</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {roleDefinitions.map((role) => (
-              <div key={role.id} className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-2">
-                    <h4 className="text-lg font-semibold text-slate-900">{role.name}</h4>
-                    {role.isSystemRole ? (
-                      <Lock className="h-4 w-4 text-slate-400" title="System Role" />
-                    ) : (
-                      <Unlock className="h-4 w-4 text-green-500" title="Custom Role" />
-                    )}
-                  </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => {
-                        setSelectedRole(role);
-                        setRoleModalMode('view');
-                        setShowRoleModal(true);
-                      }}
-                      className="p-2 text-slate-600 hover:text-blue-600"
-                      title="View Role"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </button>
-                    {!role.isSystemRole && (
-                      <>
-                        <button
-                          onClick={() => {
-                            setSelectedRole(role);
-                            setRoleModalMode('edit');
-                            setShowRoleModal(true);
-                          }}
-                          className="p-2 text-slate-600 hover:text-blue-600"
-                          title="Edit Role"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteRole(role.id)}
-                          className="p-2 text-slate-600 hover:text-red-600"
-                          title="Delete Role"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <p className="text-sm text-slate-600">{role.description}</p>
-                  
-                  {role.assayType && (
-                    <div>
-                      <span className="text-sm font-medium text-slate-700">Assay Type:</span>
-                      <span className="ml-2 inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                        {role.assayType}
-                      </span>
-                    </div>
-                  )}
-
-                  <div>
-                    <span className="text-sm font-medium text-slate-700">Permissions:</span>
-                    <div className="mt-1 text-sm text-slate-600">
-                      {role.permissions.length} permission{role.permissions.length !== 1 ? 's' : ''} assigned
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Type:</span>
-                    <span className={`font-medium ${role.isSystemRole ? 'text-orange-600' : 'text-green-600'}`}>
-                      {role.isSystemRole ? 'System Role' : 'Custom Role'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )}
@@ -805,682 +332,422 @@ const Administration: React.FC = () => {
         </div>
       )}
 
-      {/* Assay Edit/Create Modal */}
+      {/* Assay Modal */}
       {showAssayModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-slate-900">
-                  {assayModalMode === 'create' ? 'Create New Assay' : 
-                   assayModalMode === 'edit' ? `Edit Assay: ${selectedAssay?.name}` : 
-                   `View Assay: ${selectedAssay?.name}`}
-                </h3>
-                <button
-                  onClick={() => setShowAssayModal(false)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
+        <AssayModal
+          assay={editingAssay}
+          viewMode={viewMode}
+          onSave={handleSaveAssay}
+          onClose={() => {
+            setShowAssayModal(false);
+            setEditingAssay(null);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// Assay Modal Component
+const AssayModal: React.FC<{
+  assay: Assay | null;
+  viewMode: 'view' | 'edit';
+  onSave: (data: any) => void;
+  onClose: () => void;
+}> = ({ assay, viewMode, onSave, onClose }) => {
+  const [formData, setFormData] = useState({
+    name: assay?.name || '',
+    code: assay?.code || '',
+    description: assay?.description || '',
+    version: assay?.version || '1.0',
+    isActive: assay?.isActive ?? true,
+    analytes: assay?.analytes || [],
+    qcTypes: assay?.qcTypes || []
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validation
+    if (!formData.name.trim() || !formData.code.trim()) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    onSave(formData);
+  };
+
+  const addAnalyte = () => {
+    setFormData(prev => ({
+      ...prev,
+      analytes: [...prev.analytes, {
+        id: '',
+        name: '',
+        unit: '',
+        reportingLimit: 0,
+        actionLimit: 0,
+        warningLimit: 0,
+        effectiveDate: new Date().toISOString().split('T')[0]
+      }]
+    }));
+  };
+
+  const removeAnalyte = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      analytes: prev.analytes.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateAnalyte = (index: number, field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      analytes: prev.analytes.map((analyte, i) => 
+        i === index ? { ...analyte, [field]: value } : analyte
+      )
+    }));
+  };
+
+  const addQCType = () => {
+    setFormData(prev => ({
+      ...prev,
+      qcTypes: [...prev.qcTypes, {
+        id: '',
+        name: '',
+        description: '',
+        frequency: 1,
+        limits: { lower: 80, upper: 120 }
+      }]
+    }));
+  };
+
+  const removeQCType = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      qcTypes: prev.qcTypes.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateQCType = (index: number, field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      qcTypes: prev.qcTypes.map((qc, i) => 
+        i === index ? { ...qc, [field]: value } : qc
+      )
+    }));
+  };
+
+  const updateQCLimits = (index: number, limitType: 'lower' | 'upper', value: number) => {
+    setFormData(prev => ({
+      ...prev,
+      qcTypes: prev.qcTypes.map((qc, i) => 
+        i === index ? { 
+          ...qc, 
+          limits: { ...qc.limits, [limitType]: value }
+        } : qc
+      )
+    }));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-slate-200">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-semibold text-slate-900">
+              {viewMode === 'edit' ? (assay ? 'Edit Assay' : 'Create New Assay') : 'View Assay'}
+            </h3>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Basic Information */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Assay Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                disabled={viewMode === 'view'}
+                required
+              />
             </div>
-
-            <div className="p-6 space-y-6">
-              {/* Basic Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Assay Name *</label>
-                  <input
-                    type="text"
-                    value={editingAssay?.name || ''}
-                    onChange={(e) => setEditingAssay(prev => prev ? { ...prev, name: e.target.value } : null)}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                    placeholder="e.g., Potency Analysis"
-                    readOnly={assayModalMode === 'view'}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Assay Code *</label>
-                  <input
-                    type="text"
-                    value={editingAssay?.code || ''}
-                    onChange={(e) => setEditingAssay(prev => prev ? { ...prev, code: e.target.value.toUpperCase() } : null)}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                    placeholder="e.g., POT"
-                    readOnly={assayModalMode === 'view'}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Description *</label>
-                  <textarea
-                    value={editingAssay?.description || ''}
-                    onChange={(e) => setEditingAssay(prev => prev ? { ...prev, description: e.target.value } : null)}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                    rows={3}
-                    placeholder="Describe the assay methodology and purpose..."
-                    readOnly={assayModalMode === 'view'}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Version</label>
-                  <input
-                    type="text"
-                    value={editingAssay?.version || '1.0'}
-                    onChange={(e) => setEditingAssay(prev => prev ? { ...prev, version: e.target.value } : null)}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                    readOnly={assayModalMode === 'view'}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-                  <select
-                    value={editingAssay?.isActive ? 'active' : 'inactive'}
-                    onChange={(e) => setEditingAssay(prev => prev ? { ...prev, isActive: e.target.value === 'active' } : null)}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                    disabled={assayModalMode === 'view'}
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Analytes Section */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-lg font-semibold text-slate-900">Analytes</h4>
-                  {assayModalMode !== 'view' && (
-                    <button
-                      onClick={addAnalyte}
-                      className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 flex items-center space-x-1"
-                    >
-                      <Plus className="h-4 w-4" />
-                      <span>Add Analyte</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  {editingAssay?.analytes.map((analyte, index) => (
-                    <div key={index} className="border border-slate-200 rounded-lg p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">ID</label>
-                          <input
-                            type="text"
-                            value={analyte.id}
-                            onChange={(e) => updateAnalyte(index, 'id', e.target.value)}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                            placeholder="THC"
-                            readOnly={assayModalMode === 'view'}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
-                          <input
-                            type="text"
-                            value={analyte.name}
-                            onChange={(e) => updateAnalyte(index, 'name', e.target.value)}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                            placeholder="Delta-9 THC"
-                            readOnly={assayModalMode === 'view'}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Unit</label>
-                          <input
-                            type="text"
-                            value={analyte.unit}
-                            onChange={(e) => updateAnalyte(index, 'unit', e.target.value)}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                            placeholder="mg/g"
-                            readOnly={assayModalMode === 'view'}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Reporting Limit</label>
-                          <input
-                            type="number"
-                            step="0.001"
-                            value={analyte.reportingLimit}
-                            onChange={(e) => updateAnalyte(index, 'reportingLimit', parseFloat(e.target.value))}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                            readOnly={assayModalMode === 'view'}
-                          />
-                        </div>
-                        <div className="flex items-end">
-                          {assayModalMode !== 'view' && (
-                            <button
-                              onClick={() => removeAnalyte(index)}
-                              className="text-red-600 hover:text-red-800 p-2"
-                              title="Remove Analyte"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Action Limit</label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={analyte.actionLimit || ''}
-                            onChange={(e) => updateAnalyte(index, 'actionLimit', e.target.value ? parseFloat(e.target.value) : undefined)}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                            readOnly={assayModalMode === 'view'}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Warning Limit</label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={analyte.warningLimit || ''}
-                            onChange={(e) => updateAnalyte(index, 'warningLimit', e.target.value ? parseFloat(e.target.value) : undefined)}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                            readOnly={assayModalMode === 'view'}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Effective Date</label>
-                          <input
-                            type="date"
-                            value={analyte.effectiveDate}
-                            onChange={(e) => updateAnalyte(index, 'effectiveDate', e.target.value)}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                            readOnly={assayModalMode === 'view'}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* QC Types Section */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-lg font-semibold text-slate-900">QC Types</h4>
-                  {assayModalMode !== 'view' && (
-                    <button
-                      onClick={addQCType}
-                      className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 flex items-center space-x-1"
-                    >
-                      <Plus className="h-4 w-4" />
-                      <span>Add QC Type</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  {editingAssay?.qcTypes.map((qcType, index) => (
-                    <div key={index} className="border border-slate-200 rounded-lg p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">ID</label>
-                          <input
-                            type="text"
-                            value={qcType.id}
-                            onChange={(e) => updateQCType(index, 'id', e.target.value)}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                            placeholder="CCV"
-                            readOnly={assayModalMode === 'view'}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
-                          <input
-                            type="text"
-                            value={qcType.name}
-                            onChange={(e) => updateQCType(index, 'name', e.target.value)}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                            placeholder="Continuing Calibration Verification"
-                            readOnly={assayModalMode === 'view'}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Frequency</label>
-                          <input
-                            type="number"
-                            value={qcType.frequency}
-                            onChange={(e) => updateQCType(index, 'frequency', parseInt(e.target.value))}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                            readOnly={assayModalMode === 'view'}
-                          />
-                        </div>
-                        <div className="flex items-end">
-                          {assayModalMode !== 'view' && (
-                            <button
-                              onClick={() => removeQCType(index)}
-                              className="text-red-600 hover:text-red-800 p-2"
-                              title="Remove QC Type"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                        <div className="md:col-span-2">
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                          <input
-                            type="text"
-                            value={qcType.description}
-                            onChange={(e) => updateQCType(index, 'description', e.target.value)}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                            placeholder="Description of QC procedure"
-                            readOnly={assayModalMode === 'view'}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Limits (Lower - Upper)</label>
-                          <div className="flex space-x-2">
-                            <input
-                              type="number"
-                              value={qcType.limits.lower}
-                              onChange={(e) => updateQCType(index, 'limits.lower', parseFloat(e.target.value))}
-                              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                              placeholder="80"
-                              readOnly={assayModalMode === 'view'}
-                            />
-                            <input
-                              type="number"
-                              value={qcType.limits.upper}
-                              onChange={(e) => updateQCType(index, 'limits.upper', parseFloat(e.target.value))}
-                              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                              placeholder="120"
-                              readOnly={assayModalMode === 'view'}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Assay Code <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.code}
+                onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                disabled={viewMode === 'view'}
+                required
+              />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Version</label>
+              <input
+                type="text"
+                value={formData.version}
+                onChange={(e) => setFormData(prev => ({ ...prev, version: e.target.value }))}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                disabled={viewMode === 'view'}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="isActive"
+                checked={formData.isActive}
+                onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
+                className="rounded border-slate-300"
+                disabled={viewMode === 'view'}
+              />
+              <label htmlFor="isActive" className="text-sm font-medium text-slate-700">
+                Active Assay
+              </label>
+            </div>
+          </div>
 
-            <div className="p-6 border-t border-slate-200 flex justify-end space-x-3">
-              <button
-                onClick={() => setShowAssayModal(false)}
-                className="px-4 py-2 text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"
-              >
-                {assayModalMode === 'view' ? 'Close' : 'Cancel'}
-              </button>
-              {assayModalMode !== 'view' && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2"
+              rows={3}
+              disabled={viewMode === 'view'}
+            />
+          </div>
+
+          {/* Analytes Section */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-lg font-semibold text-slate-900">Analytes</h4>
+              {viewMode === 'edit' && (
                 <button
-                  onClick={saveAssay}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  type="button"
+                  onClick={addAnalyte}
+                  className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
                 >
-                  {assayModalMode === 'create' ? 'Create Assay' : 'Save Changes'}
+                  Add Analyte
                 </button>
               )}
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* User Edit Modal */}
-      {showUserModal && selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-slate-900">
-                  Edit User: {selectedUser.firstName} {selectedUser.lastName}
-                </h3>
-                <button
-                  onClick={() => setShowUserModal(false)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
-                  <input
-                    type="text"
-                    value={selectedUser.firstName}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                    readOnly
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
-                  <input
-                    type="text"
-                    value={selectedUser.lastName}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                    readOnly
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
-                  <input
-                    type="text"
-                    value={selectedUser.username}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                    readOnly
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={selectedUser.email}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                    readOnly
-                  />
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-lg font-semibold text-slate-900 mb-4">Role Assignment</h4>
-                <div className="space-y-4">
-                  {roleDefinitions.map((role) => {
-                    const hasRole = selectedUser.roles?.some((userRole: any) => 
-                      userRole.assayType === role.assayType && userRole.role === role.name.split(' - ')[1]
-                    );
-
-                    return (
-                      <div key={role.id} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg">
-                        <div>
-                          <div className="font-medium text-slate-900">{role.name}</div>
-                          <div className="text-sm text-slate-600">{role.description}</div>
-                          {role.assayType && (
-                            <div className="text-xs text-blue-600">Assay: {role.assayType}</div>
-                          )}
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={hasRole}
-                          onChange={(e) => {
-                            const newRoles = [...(selectedUser.roles || [])];
-                            
-                            if (e.target.checked) {
-                              // Add role
-                              if (role.assayType) {
-                                const roleName = role.name.split(' - ')[1];
-                                newRoles.push({
-                                  assayType: role.assayType,
-                                  role: roleName
-                                });
-                              } else {
-                                newRoles.push({
-                                  assayType: 'ALL',
-                                  role: role.name
-                                });
-                              }
-                            } else {
-                              // Remove role
-                              const roleIndex = newRoles.findIndex((userRole: any) => 
-                                userRole.assayType === role.assayType && userRole.role === role.name.split(' - ')[1]
-                              );
-                              if (roleIndex > -1) {
-                                newRoles.splice(roleIndex, 1);
-                              }
-                            }
-                            
-                            setSelectedUser({ ...selectedUser, roles: newRoles });
-                          }}
-                          className="rounded border-slate-300"
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-slate-200 flex justify-end space-x-3">
-              <button
-                onClick={() => setShowUserModal(false)}
-                className="px-4 py-2 text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  updateUserRoles(selectedUser.id, selectedUser.roles);
-                  setShowUserModal(false);
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Role Modal */}
-      {showRoleModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-slate-900">
-                  {roleModalMode === 'create' ? 'Create New Role' : 
-                   roleModalMode === 'edit' ? `Edit Role: ${selectedRole?.name}` : 
-                   `View Role: ${selectedRole?.name}`}
-                </h3>
-                <button
-                  onClick={() => setShowRoleModal(false)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {roleModalMode === 'create' ? (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-4">
+              {formData.analytes.map((analyte, index) => (
+                <div key={index} className="border border-slate-200 rounded-lg p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Role Name *</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">ID</label>
                       <input
                         type="text"
-                        value={newRole.name}
-                        onChange={(e) => setNewRole({ ...newRole, name: e.target.value })}
+                        value={analyte.id}
+                        onChange={(e) => updateAnalyte(index, 'id', e.target.value)}
                         className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                        placeholder="e.g., Custom Analyst"
+                        disabled={viewMode === 'view'}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Assay Type (Optional)</label>
-                      <select
-                        value={newRole.assayType}
-                        onChange={(e) => setNewRole({ ...newRole, assayType: e.target.value })}
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={analyte.name}
+                        onChange={(e) => updateAnalyte(index, 'name', e.target.value)}
                         className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                        disabled={viewMode === 'view'}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Unit</label>
+                      <input
+                        type="text"
+                        value={analyte.unit}
+                        onChange={(e) => updateAnalyte(index, 'unit', e.target.value)}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                        disabled={viewMode === 'view'}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Reporting Limit</label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={analyte.reportingLimit}
+                        onChange={(e) => updateAnalyte(index, 'reportingLimit', parseFloat(e.target.value))}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                        disabled={viewMode === 'view'}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Action Limit</label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={analyte.actionLimit || ''}
+                        onChange={(e) => updateAnalyte(index, 'actionLimit', parseFloat(e.target.value))}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                        disabled={viewMode === 'view'}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Warning Limit</label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={analyte.warningLimit || ''}
+                        onChange={(e) => updateAnalyte(index, 'warningLimit', parseFloat(e.target.value))}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                        disabled={viewMode === 'view'}
+                      />
+                    </div>
+                  </div>
+                  {viewMode === 'edit' && (
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => removeAnalyte(index)}
+                        className="text-red-600 hover:text-red-800 text-sm"
                       >
-                        <option value="">All Assays</option>
-                        <option value="POT">POT - Potency</option>
-                        <option value="PES">PES - Pesticides</option>
-                        <option value="HMT">HMT - Heavy Metals</option>
-                        <option value="SOL">SOL - Solvents</option>
-                        <option value="RSA">RSA - Residual Solvents</option>
-                        <option value="NUT">NUT - Nutrients</option>
-                        <option value="MIC">MIC - Microbials</option>
-                      </select>
+                        Remove Analyte
+                      </button>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Description *</label>
-                    <textarea
-                      value={newRole.description}
-                      onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                      rows={3}
-                      placeholder="Describe the role and its responsibilities..."
-                    />
-                  </div>
-
-                  <div>
-                    <h4 className="text-lg font-semibold text-slate-900 mb-4">Permissions</h4>
-                    <div className="space-y-6">
-                      {['Sample Management', 'Batch Management', 'Analysis', 'QC', 'Administration', 'Reporting'].map((category) => (
-                        <div key={category} className="border border-slate-200 rounded-lg p-4">
-                          <h5 className="font-medium text-slate-900 mb-3">{category}</h5>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {getPermissionsByCategory(category).map((permission) => (
-                              <label key={permission.id} className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  checked={newRole.permissions?.some(p => p.id === permission.id) || false}
-                                  onChange={(e) => {
-                                    const updatedPermissions = e.target.checked
-                                      ? [...(newRole.permissions || []), permission]
-                                      : (newRole.permissions || []).filter(p => p.id !== permission.id);
-                                    setNewRole({ ...newRole, permissions: updatedPermissions });
-                                  }}
-                                  className="rounded border-slate-300"
-                                />
-                                <div>
-                                  <div className="text-sm font-medium text-slate-900">{permission.name}</div>
-                                  <div className="text-xs text-slate-500">{permission.description}</div>
-                                </div>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                // View/Edit existing role
-                selectedRole && (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Role Name</label>
-                        <input
-                          type="text"
-                          value={selectedRole.name}
-                          className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                          readOnly={roleModalMode === 'view' || selectedRole.isSystemRole}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Assay Type</label>
-                        <input
-                          type="text"
-                          value={selectedRole.assayType || 'All Assays'}
-                          className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                          readOnly
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                      <textarea
-                        value={selectedRole.description}
-                        className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                        rows={3}
-                        readOnly={roleModalMode === 'view' || selectedRole.isSystemRole}
-                      />
-                    </div>
-
-                    <div>
-                      <h4 className="text-lg font-semibold text-slate-900 mb-4">
-                        Permissions ({selectedRole.permissions.length})
-                      </h4>
-                      <div className="space-y-6">
-                        {['Sample Management', 'Batch Management', 'Analysis', 'QC', 'Administration', 'Reporting'].map((category) => {
-                          const categoryPermissions = getPermissionsByCategory(category);
-                          const hasAnyPermission = categoryPermissions.some(p => 
-                            selectedRole.permissions.some(rp => rp.id === p.id)
-                          );
-
-                          if (!hasAnyPermission && roleModalMode === 'view') return null;
-
-                          return (
-                            <div key={category} className="border border-slate-200 rounded-lg p-4">
-                              <h5 className="font-medium text-slate-900 mb-3">{category}</h5>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                {categoryPermissions.map((permission) => {
-                                  const hasPermission = selectedRole.permissions.some(p => p.id === permission.id);
-                                  
-                                  if (!hasPermission && roleModalMode === 'view') return null;
-
-                                  return (
-                                    <label key={permission.id} className="flex items-center space-x-2">
-                                      <input
-                                        type="checkbox"
-                                        checked={hasPermission}
-                                        disabled={roleModalMode === 'view' || selectedRole.isSystemRole}
-                                        className="rounded border-slate-300"
-                                      />
-                                      <div>
-                                        <div className="text-sm font-medium text-slate-900">{permission.name}</div>
-                                        <div className="text-xs text-slate-500">{permission.description}</div>
-                                      </div>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {selectedRole.isSystemRole && (
-                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                        <div className="flex items-center space-x-2">
-                          <Lock className="h-5 w-5 text-orange-600" />
-                          <div>
-                            <h5 className="font-medium text-orange-900">System Role</h5>
-                            <p className="text-sm text-orange-700">
-                              This is a system-generated role and cannot be modified. It was automatically created based on assay configurations.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )
-              )}
-            </div>
-
-            <div className="p-6 border-t border-slate-200 flex justify-end space-x-3">
-              <button
-                onClick={() => setShowRoleModal(false)}
-                className="px-4 py-2 text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"
-              >
-                {roleModalMode === 'view' ? 'Close' : 'Cancel'}
-              </button>
-              {roleModalMode === 'create' && (
-                <button
-                  onClick={createRole}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Create Role
-                </button>
-              )}
-              {roleModalMode === 'edit' && selectedRole && !selectedRole.isSystemRole && (
-                <button
-                  onClick={() => updateRole(selectedRole)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Save Changes
-                </button>
-              )}
+                  )}
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-      )}
+
+          {/* QC Types Section */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-lg font-semibold text-slate-900">QC Types</h4>
+              {viewMode === 'edit' && (
+                <button
+                  type="button"
+                  onClick={addQCType}
+                  className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                >
+                  Add QC Type
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {formData.qcTypes.map((qc, index) => (
+                <div key={index} className="border border-slate-200 rounded-lg p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">ID</label>
+                      <input
+                        type="text"
+                        value={qc.id}
+                        onChange={(e) => updateQCType(index, 'id', e.target.value)}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                        disabled={viewMode === 'view'}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={qc.name}
+                        onChange={(e) => updateQCType(index, 'name', e.target.value)}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                        disabled={viewMode === 'view'}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                      <input
+                        type="text"
+                        value={qc.description}
+                        onChange={(e) => updateQCType(index, 'description', e.target.value)}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                        disabled={viewMode === 'view'}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Frequency</label>
+                      <input
+                        type="number"
+                        value={qc.frequency}
+                        onChange={(e) => updateQCType(index, 'frequency', parseInt(e.target.value))}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                        disabled={viewMode === 'view'}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Recovery Limits</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs text-slate-600 mb-1">Lower</label>
+                          <input
+                            type="number"
+                            value={qc.limits.lower}
+                            onChange={(e) => updateQCLimits(index, 'lower', parseFloat(e.target.value))}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                            disabled={viewMode === 'view'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-600 mb-1">Upper</label>
+                          <input
+                            type="number"
+                            value={qc.limits.upper}
+                            onChange={(e) => updateQCLimits(index, 'upper', parseFloat(e.target.value))}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                            disabled={viewMode === 'view'}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {viewMode === 'edit' && (
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => removeQCType(index)}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                      >
+                        Remove QC Type
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-3 pt-6 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"
+            >
+              {viewMode === 'edit' ? 'Cancel' : 'Close'}
+            </button>
+            {viewMode === 'edit' && (
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                {assay ? 'Update Assay' : 'Create Assay'}
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
